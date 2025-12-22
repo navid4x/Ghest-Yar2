@@ -20,6 +20,9 @@ export default function Home() {
   useEffect(() => {
     async function loadUser() {
       const currentUser = await getCurrentUser()
+
+      console.log("[v0] Current user:", currentUser ? `${currentUser.email} (${currentUser.id})` : "None")
+
       if (!currentUser) {
         router.replace("/auth")
       } else {
@@ -35,6 +38,7 @@ export default function Home() {
     const cleanup = setupOnlineListener(async (online) => {
       setIsOnline(online)
       if (online) {
+        console.log("[v0] Network online - refreshing user and syncing...")
         // رفرش کردن اطلاعات کاربر
         const refreshedUser = await getCurrentUser()
         if (refreshedUser) {

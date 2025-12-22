@@ -9,18 +9,20 @@ export interface AuthUser {
 // ============================================
 // 🔐 LOGIN OR SIGNUP - ورود یا ثبت‌نام خودکار
 // ============================================
-export async function loginOrSignup(email: string, password: string): Promise<{
+export async function loginOrSignup(
+  email: string,
+  password: string,
+): Promise<{
   user: AuthUser | null
   error: string | null
   isOnline: boolean
-  action: 'login' | 'signup' | 'offline'
+  action: "login" | "signup" | "offline"
 }> {
-  
   // 1️⃣ اگر آنلاین بود → سعی کن Login کنه
   if (navigator.onLine) {
     try {
       const supabase = createClient()
-      
+
       // اول سعی می‌کنیم Login کنیم
       let { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -28,9 +30,9 @@ export async function loginOrSignup(email: string, password: string): Promise<{
       })
 
       // اگه یوزر وجود نداشت (خطای Invalid credentials) → SignUp می‌کنیم
-      if (error && error.message.includes('Invalid')) {
-        console.log('[Auth] کاربر وجود نداره → ثبت‌نام می‌کنیم')
-        
+      if (error && error.message.includes("Invalid")) {
+        console.log("[Auth] کاربر وجود نداره → ثبت‌نام می‌کنیم")
+
         const signupResult = await supabase.auth.signUp({
           email,
           password,
@@ -38,8 +40,8 @@ export async function loginOrSignup(email: string, password: string): Promise<{
             emailRedirectTo: `${window.location.origin}/`,
             data: {
               email_confirm: false, // بدون تایید ایمیل
-            }
-          }
+            },
+          },
         })
 
         data = signupResult.data
@@ -60,8 +62,8 @@ export async function loginOrSignup(email: string, password: string): Promise<{
           saveUserToLocal(user)
           clearPendingSync()
 
-          console.log('[Auth] ✅ ثبت‌نام آنلاین موفق')
-          return { user, error: null, isOnline: true, action: 'signup' }
+          console.log("[Auth] ✅ ثبت‌نام آنلاین موفق")
+          return { user, error: null, isOnline: true, action: "signup" }
         }
       }
 
@@ -79,46 +81,45 @@ export async function loginOrSignup(email: string, password: string): Promise<{
         }
 
         saveUserToLocal(user)
-        
+
         // سینک دیتای آفلاین
         await syncOfflineData(user.id)
         clearPendingSync()
 
-        console.log('[Auth] ✅ ورود آنلاین موفق')
-        return { user, error: null, isOnline: true, action: 'login' }
+        console.log("[Auth] ✅ ورود آنلاین موفق")
+        return { user, error: null, isOnline: true, action: "login" }
       }
 
       // اگه خطای دیگه‌ای بود
       if (error) {
         throw error
       }
-
     } catch (error: any) {
-      console.error('[Auth] خطا در آنلاین:', error.message)
-      
+      console.error("[Auth] خطا در آنلاین:", error.message)
+
       // اگه خطای اینترنت بود → برو حالت آفلاین
-      if (error.message.includes('fetch') || error.message.includes('network')) {
+      if (error.message.includes("fetch") || error.message.includes("network")) {
         // ادامه به حالت آفلاین
       } else {
-        return { 
-          user: null, 
-          error: error.message || 'خطا در ورود', 
-          isOnline: true, 
-          action: 'login' 
+        return {
+          user: null,
+          error: error.message || "خطا در ورود",
+          isOnline: true,
+          action: "login",
         }
       }
     }
   }
 
   // 2️⃣ حالت آفلاین
-  console.log('[Auth] حالت آفلاین')
-  
+  console.log("[Auth] حالت آفلاین")
+
   const storedUser = getStoredUser()
-  
+
   // اگه قبلاً این یوزر رو داشتیم → Login آفلاین
-  if (storedUser && storedUser.email === email && await verifyOfflinePassword(password)) {
-    console.log('[Auth] 📱 ورود آفلاین موفق')
-    return { user: storedUser, error: null, isOnline: false, action: 'login' }
+  if (storedUser && storedUser.email === email && (await verifyOfflinePassword(password))) {
+    console.log("[Auth] 📱 ورود آفلاین موفق")
+    return { user: storedUser, error: null, isOnline: false, action: "login" }
   }
 
   // اگه یوزر جدیده → SignUp آفلاین
@@ -126,8 +127,8 @@ export async function loginOrSignup(email: string, password: string): Promise<{
   saveUserToLocal(newUser)
   markForSync({ email, password })
 
-  console.log('[Auth] 📱 ثبت‌نام آفلاین موفق')
-  return { user: newUser, error: null, isOnline: false, action: 'signup' }
+  console.log("[Auth] 📱 ثبت‌نام آفلاین موفق")
+  return { user: newUser, error: null, isOnline: false, action: "signup" }
 }
 
 // ============================================
@@ -139,7 +140,7 @@ export async function logout(): Promise<void> {
       const supabase = createClient()
       await supabase.auth.signOut()
     } catch (error) {
-      console.error('[Auth] خطا در خروج:', error)
+      console.error("[Auth] خطا در خروج:", error)
     }
   }
 
@@ -148,8 +149,8 @@ export async function logout(): Promise<void> {
   localStorage.removeItem("password_hash")
   localStorage.removeItem("session_token")
   localStorage.removeItem("refresh_token")
-  
-  console.log('[Auth] 🚪 خروج موفق')
+
+  console.log("[Auth] 🚪 خروج موفق")
 }
 
 // ============================================
@@ -159,20 +160,22 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   if (navigator.onLine) {
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
       if (user) {
         const authUser: AuthUser = {
           id: user.id,
           email: user.email!,
           created_at: user.created_at,
         }
-        
+
         saveUserToLocal(authUser)
         return authUser
       }
     } catch (error) {
-      console.error('[Auth] خطا در دریافت کاربر:', error)
+      console.error("[Auth] خطا در دریافت کاربر:", error)
     }
   }
 
@@ -184,7 +187,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 // ============================================
 export async function syncPendingAuth(): Promise<boolean> {
   if (!navigator.onLine) {
-    console.log('[Sync] ⏸️ آفلاین')
+    console.log("[Sync] ⏸️ آفلاین")
     return false
   }
 
@@ -193,32 +196,32 @@ export async function syncPendingAuth(): Promise<boolean> {
 
   try {
     const { email, password } = JSON.parse(pending)
-    
+
     const supabase = createClient()
-    const { data, error } = await supabase.auth.signUp({ 
-      email, 
+    const { data, error } = await supabase.auth.signUp({
+      email,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-      }
+      },
     })
-    
+
     if (!error && data.user) {
       const onlineUser: AuthUser = {
         id: data.user.id,
         email: data.user.email!,
         created_at: data.user.created_at,
       }
-      
+
       saveUserToLocal(onlineUser)
       await syncOfflineData(data.user.id)
       clearPendingSync()
-      
-      console.log('[Sync] ✅ همگام‌سازی موفق!')
+
+      console.log("[Sync] ✅ همگام‌سازی موفق!")
       return true
     }
   } catch (error) {
-    console.error('[Sync] ❌ خطا در همگام‌سازی:', error)
+    console.error("[Sync] ❌ خطا در همگام‌سازی:", error)
   }
 
   return false
@@ -234,18 +237,44 @@ async function syncOfflineData(onlineUserId: string): Promise<void> {
 
     const offlineKey = `installments-${storedUser.id}`
     const offlineData = localStorage.getItem(offlineKey)
-    
+
     if (offlineData && storedUser.id !== onlineUserId) {
+      const installments = JSON.parse(offlineData)
+
+      // آپدیت user_id همه اقساط
+      const updatedInstallments = installments.map((inst: any) => ({
+        ...inst,
+        user_id: onlineUserId,
+        id: inst.id.startsWith("offline_")
+          ? `${onlineUserId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          : inst.id,
+      }))
+
       const onlineKey = `installments-${onlineUserId}`
-      
-      // انتقال دیتا
-      localStorage.setItem(onlineKey, offlineData)
+      localStorage.setItem(onlineKey, JSON.stringify(updatedInstallments))
       localStorage.removeItem(offlineKey)
-      
-      console.log('[Sync] ✅ اقساط همگام‌سازی شدند')
+
+      if (typeof window !== "undefined") {
+        const syncQueue = localStorage.getItem("sync_queue")
+        const queue = syncQueue ? JSON.parse(syncQueue) : []
+
+        updatedInstallments.forEach((inst: any) => {
+          queue.push({
+            id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: "create",
+            entityType: "installment",
+            data: inst,
+            timestamp: new Date().toISOString(),
+          })
+        })
+
+        localStorage.setItem("sync_queue", JSON.stringify(queue))
+      }
+
+      console.log("[Sync] ✅ اقساط با user_id جدید همگام‌سازی شدند")
     }
   } catch (error) {
-    console.error('[Sync] خطا در همگام‌سازی اقساط:', error)
+    console.error("[Sync] خطا در همگام‌سازی اقساط:", error)
   }
 }
 
@@ -256,9 +285,9 @@ async function syncOfflineData(onlineUserId: string): Promise<void> {
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
 async function createOfflineUser(email: string, password: string): Promise<AuthUser> {
@@ -267,11 +296,11 @@ async function createOfflineUser(email: string, password: string): Promise<AuthU
     email,
     created_at: new Date().toISOString(),
   }
-  
+
   // ذخیره hash پسورد
   const hash = await hashPassword(password)
   localStorage.setItem("password_hash", hash)
-  
+
   return user
 }
 
@@ -287,7 +316,7 @@ function getStoredUser(): AuthUser | null {
 async function verifyOfflinePassword(password: string): Promise<boolean> {
   const storedHash = localStorage.getItem("password_hash")
   if (!storedHash) return false
-  
+
   const inputHash = await hashPassword(password)
   return inputHash === storedHash
 }
@@ -310,21 +339,21 @@ function clearPendingSync(): void {
 // ============================================
 export function setupOnlineListener(callback: (isOnline: boolean) => void): () => void {
   const onOnline = async () => {
-    console.log('[Network] 🌐 آنلاین شد')
+    console.log("[Network] 🌐 آنلاین شد")
     callback(true)
     await syncPendingAuth()
   }
-  
+
   const onOffline = () => {
-    console.log('[Network] 📱 آفلاین شد')
+    console.log("[Network] 📱 آفلاین شد")
     callback(false)
   }
 
-  window.addEventListener('online', onOnline)
-  window.addEventListener('offline', onOffline)
+  window.addEventListener("online", onOnline)
+  window.addEventListener("offline", onOffline)
 
   return () => {
-    window.removeEventListener('online', onOnline)
-    window.removeEventListener('offline', onOffline)
+    window.removeEventListener("online", onOnline)
+    window.removeEventListener("offline", onOffline)
   }
 }
