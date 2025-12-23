@@ -135,8 +135,13 @@ export async function saveInstallment(userId: string, installment: Installment):
 // 🗑️ DELETE INSTALLMENT
 // ============================================
 export async function deleteInstallment(userId: string, installmentId: string): Promise<void> {
+  console.log("[v0] Deleting installment:", { userId, installmentId })
+
   const installments = getLocalInstallments(userId)
   const filtered = installments.filter((i) => i.id !== installmentId)
+
+  console.log("[v0] Before delete count:", installments.length, "After:", filtered.length)
+
   saveLocalInstallments(userId, filtered)
 
   if (navigator.onLine) {
@@ -147,11 +152,13 @@ export async function deleteInstallment(userId: string, installmentId: string): 
       } = await supabase.auth.getUser()
 
       if (user) {
+        console.log("[v0] Deleting from server...")
         await deleteFromServer(installmentId)
+        console.log("[v0] Deleted from server successfully")
         return
       }
     } catch (error) {
-      // Silent
+      console.error("[v0] Failed to delete from server:", error)
     }
   }
 

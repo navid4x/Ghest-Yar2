@@ -42,7 +42,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       const data = await loadInstallments(userId)
       setInstallments(data)
     } catch (error) {
-      console.error("[v0] Error loading installments:", error)
+      console.error("Error loading installments:", error)
     } finally {
       setLoading(false)
     }
@@ -93,16 +93,16 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
+
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
+        // Only payments from today onwards
         if (dueDate < today) return false
 
-        const [dueJy, dueJm, dueJd] = gregorianToJalali(
-          dueDate.getFullYear(),
-          dueDate.getMonth() + 1,
-          dueDate.getDate(),
-        )
+        const [dueJy, dueJm] = gregorianToJalali(dueDate.getFullYear(), dueDate.getMonth() + 1, dueDate.getDate())
+
+        // Check if payment is in current Persian month and year
         return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
       })
       .reduce((s, p) => s + p.amount, 0)
@@ -116,6 +116,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         if (p.is_paid) return false
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
+        // Only count payments from today onwards
         return dueDate >= today
       })
       .reduce((s, p) => s + p.amount, 0)
@@ -139,11 +140,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
         if (dueDate < today) return false
 
-        const [dueJy, dueJm, dueJd] = gregorianToJalali(
-          dueDate.getFullYear(),
-          dueDate.getMonth() + 1,
-          dueDate.getDate(),
-        )
+        const [dueJy, dueJm] = gregorianToJalali(dueDate.getFullYear(), dueDate.getMonth() + 1, dueDate.getDate())
         return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
       })
       .map((p) => ({ ...inst, payment: p }))
