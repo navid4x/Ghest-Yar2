@@ -42,11 +42,8 @@ function clearSyncQueue(): void {
 // ============================================
 export async function loadInstallments(userId: string): Promise<Installment[]> {
   const localData = getLocalInstallments(userId)
-  console.log("[v0] Loading installments for user:", userId)
-  console.log("[v0] Local installments count:", localData.length)
 
   if (!navigator.onLine) {
-    console.log("[v0] Offline - using local data only")
     return localData
   }
 
@@ -58,16 +55,13 @@ export async function loadInstallments(userId: string): Promise<Installment[]> {
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.log("[v0] No authenticated user - using local data")
       return localData
     }
 
     const realUserId = user.id
-    console.log("[v0] Authenticated user ID:", realUserId)
 
     // اگر userId متفاوت است، migrate کن
     if (userId !== realUserId && localData.length > 0) {
-      console.log("[v0] Migrating data from", userId, "to", realUserId)
       const migratedData = localData.map((inst) => ({
         ...inst,
         user_id: realUserId,
@@ -89,23 +83,12 @@ export async function loadInstallments(userId: string): Promise<Installment[]> {
     }
 
     await processSyncQueue(realUserId)
-
-    console.log("[v0] Fetching from server...")
     const serverData = await fetchFromServer(realUserId)
-    console.log("[v0] Server installments count:", serverData.length)
-    console.log(
-      "[v0] Server installments:",
-      serverData.map((i) => ({ id: i.id, name: i.creditor_name })),
-    )
-
     const merged = mergeInstallments(getLocalInstallments(realUserId), serverData, realUserId)
-    console.log("[v0] Merged installments count:", merged.length)
-
     saveLocalInstallments(realUserId, merged)
 
     return merged
   } catch (error) {
-    console.error("[v0] Error loading installments:", error)
     return localData
   }
 }
@@ -152,13 +135,8 @@ export async function saveInstallment(userId: string, installment: Installment):
 // 🗑️ DELETE INSTALLMENT
 // ============================================
 export async function deleteInstallment(userId: string, installmentId: string): Promise<void> {
-  console.log("[v0] Deleting installment:", { userId, installmentId })
-
   const installments = getLocalInstallments(userId)
   const filtered = installments.filter((i) => i.id !== installmentId)
-
-  console.log("[v0] Before delete count:", installments.length, "After:", filtered.length)
-
   saveLocalInstallments(userId, filtered)
 
   if (navigator.onLine) {
@@ -169,17 +147,14 @@ export async function deleteInstallment(userId: string, installmentId: string): 
       } = await supabase.auth.getUser()
 
       if (user) {
-        console.log("[v0] Deleting from server with user ID:", user.id)
         await deleteFromServer(installmentId)
-        console.log("[v0] Deleted from server successfully")
         return
       }
     } catch (error) {
-      console.error("[v0] Failed to delete from server:", error)
+      // Silent
     }
   }
 
-  console.log("[v0] Queuing delete operation for later sync")
   queueSyncOperation({
     type: "delete",
     entityType: "installment",

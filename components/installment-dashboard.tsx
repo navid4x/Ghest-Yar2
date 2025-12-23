@@ -16,7 +16,6 @@ import {
   getCurrentPersianMonthRemainingDays,
   toPersianDigits,
   formatCurrencyPersian,
-  isInCurrentPersianMonth,
 } from "@/lib/persian-calendar"
 import { loadInstallments, togglePayment } from "@/lib/data-sync"
 
@@ -43,7 +42,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       const data = await loadInstallments(userId)
       setInstallments(data)
     } catch (error) {
-      console.error("Error loading installments:", error)
+      console.error("[v0] Error loading installments:", error)
     } finally {
       setLoading(false)
     }
@@ -94,15 +93,17 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
-        // Only payments from today onwards
         if (dueDate < today) return false
 
-        // Check if payment is in current Persian month
-        return isInCurrentPersianMonth(p.due_date)
+        const [dueJy, dueJm, dueJd] = gregorianToJalali(
+          dueDate.getFullYear(),
+          dueDate.getMonth() + 1,
+          dueDate.getDate(),
+        )
+        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
       })
       .reduce((s, p) => s + p.amount, 0)
     return sum + unpaidAmount
@@ -115,7 +116,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         if (p.is_paid) return false
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
-        // Only count payments from today onwards
         return dueDate >= today
       })
       .reduce((s, p) => s + p.amount, 0)
@@ -139,7 +139,12 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
         if (dueDate < today) return false
 
-        return isInCurrentPersianMonth(p.due_date)
+        const [dueJy, dueJm, dueJd] = gregorianToJalali(
+          dueDate.getFullYear(),
+          dueDate.getMonth() + 1,
+          dueDate.getDate(),
+        )
+        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
       })
       .map((p) => ({ ...inst, payment: p }))
   })
@@ -192,6 +197,21 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       </div>
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+
+      <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">کل بدهی</p>
+              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
+                {formatCurrency(totalDebt)} تومان
+              </p>
+            </div>
+            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
+              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+            </div>
+          </div>
+        </Card>
+        
         <Card className="p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -202,20 +222,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-green-500/10 shrink-0">
               <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-green-500" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground">کل بدهی</p>
-              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(totalDebt)} تومان
-              </p>
-            </div>
-            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
             </div>
           </div>
         </Card>
@@ -231,21 +237,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-amber-500/10 shrink-0">
               <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-amber-500" />
-            </div>
-          </div>
-        </Card>
-
-        <Card
-          className="p-4 bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20 cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => setSelectedCard(selectedCard === "currentMonth" ? null : "currentMonth")}
-        >
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground">اقساط ماه جاری</p>
-              <p className="mt-1 text-lg md:text-xl font-bold">{toPersianDigits(currentMonthInstallments.length)}</p>
-            </div>
-            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-blue-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-blue-500" />
             </div>
           </div>
         </Card>
