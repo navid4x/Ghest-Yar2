@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Calendar, Banknote, BanknoteArrowUp, CircleDollarSign, TrendingDown, Clock, AlertCircle, CalendarDays, List } from "lucide-react"
+import { Plus, Calendar, Banknote, CircleDollarSign, TrendingDown, Clock, AlertCircle, CalendarDays, List } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
@@ -77,7 +77,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
-  function getPersianDate(gregorianDate: string): string {
+    function getPersianDate(gregorianDate: string): string {
     const [year, month, day] = gregorianDate.split("-").map(Number)
     const [jy, jm, jd] = gregorianToJalali(year, month, day)
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
@@ -92,7 +92,15 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     todayGregorian.getMonth() + 1,
     todayGregorian.getDate()
   )
-
+  function getRecurrenceLabel(recurrence: string): string {
+    const labels = {
+      daily: "روزانه",
+      weekly: "هفتگی",
+      monthly: "ماهانه",
+      yearly: "سالانه",
+    }
+    return labels[recurrence as keyof typeof labels] || recurrence
+  }
   // ✅ محاسبه کل بدهی (از امروز به بعد)
   const totalDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) {
@@ -233,7 +241,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">کل بدهی</p>
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(totalDebt)} تومان
+                {formatCurrency(totalDebt)} 
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
@@ -247,7 +255,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">بدهی ماه جاری</p>
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(currentMonthDebt)} تومان
+                {formatCurrency(currentMonthDebt)} 
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-green-500/10 shrink-0">
@@ -355,7 +363,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap justify-end">
                             <Badge variant="outline" className="font-medium text-xs md:text-sm shrink-0">
-                              {installment.recurrence}
+                               {getRecurrenceLabel(installment.recurrence)}
                             </Badge>
                             <h3 className="text-lg md:text-xl font-bold break-words">{installment.creditor_name}</h3>
                           </div>
@@ -363,8 +371,9 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                             {installment.item_description}
                           </p>
                           {installment.payment_time && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              ساعت پرداخت: {toPersianDigits(installment.payment_time)}
+                            <p className="text-sm text-muted-foreground mt-1">
+                              ساعت پرداخت: {toPersianDigits(installment.payment_time.slice(0, 5))}
+                         
                             </p>
                           )}
                         </div>
@@ -388,10 +397,13 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                               <p className="text-xs md:text-sm font-medium text-muted-foreground mb-2">قسط بعدی</p>
                               <div className="flex flex-col gap-2 text-xs md:text-sm dir:rtl">
                                 <div className="flex items-center gap-2 justify-end">
-                                  <span className="font-bold text-primary text-base md:text-lg break-words">
-                                    {formatCurrency(nextPayment.amount)} تومان
-                                  </span>
-                                  <CalendarDays className="h-4 w-4 text-primary shrink-0" />
+                                    <span className="text-xs md:text-sm font-medium text-muted-foreground break-words">
+                                    تومان
+                                  </span> 
+                                  <span className="font-bold text-primary text-right text-base md:text-lg break-words">
+                                    {formatCurrency(nextPayment.amount)}
+                                  </span> 
+                                  <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap justify-end">
                                   <span className="text-muted-foreground whitespace-nowrap">
