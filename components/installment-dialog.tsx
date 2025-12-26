@@ -428,18 +428,18 @@ if (recurr === 'never') {
                 <Label htmlFor="recurrence" className="text-sm">
                   دوره تکرار *
                 </Label>
-                <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
+              <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
                   <SelectTrigger className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">روزانه</SelectItem>
-                    <SelectItem value="weekly">هفتگی</SelectItem>
-                    <SelectItem value="monthly">ماهانه</SelectItem>
-                    <SelectItem value="yearly">سالانه</SelectItem>
-                    <SelectItem value="never">هرگز</SelectItem>
-                  </SelectContent>
-                </Select>
+               <SelectContent>
+                 <SelectItem value="daily" >روزانه</SelectItem>
+                 <SelectItem value="weekly" >هفتگی</SelectItem>
+                 <SelectItem value="monthly" >ماهانه</SelectItem>
+                 <SelectItem value="yearly" >سالانه</SelectItem>
+                 <SelectItem value="never" >هرگز</SelectItem>
+               </SelectContent>
+              </Select>
               </div>
 
               {recurrence !== 'never' && (<div>
