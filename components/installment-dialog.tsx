@@ -47,11 +47,18 @@ export function InstallmentDialog({
   const [installmentAmountDisplay, setInstallmentAmountDisplay] = useState("")
   const [startDatePersian, setStartDatePersian] = useState({ year: 1403, month: 1, day: 1 })
   const [installmentCount, setInstallmentCount] = useState("12")
-  const [recurrence, setRecurrence] = useState<"daily" | "weekly" | "monthly" | "yearly">("monthly")
+  const [recurrence, setRecurrence] = useState<"daily" | "weekly" | "monthly" | "yearly" | "never">("monthly")
   const [paymentTime, setPaymentTime] = useState("09:00")
   const [reminderDays, setReminderDays] = useState("0")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
+
+useEffect(() => {
+  if (recurrence === 'never') {
+    setInstallmentCount('1');  // اتوماتیک 1 کن
+  }
+}, [recurrence]);  // هر بار recurrence تغییر کرد، چک کن
+
 
   useEffect(() => {
     if (installment) {
@@ -101,12 +108,22 @@ export function InstallmentDialog({
   function generatePayments(
     start: string,
     count: number,
-    recurr: "daily" | "weekly" | "monthly" | "yearly",
+    recurr: "daily" | "weekly" | "monthly" | "yearly" | "never",
     amount: number,
   ): InstallmentPayment[] {
     const payments: InstallmentPayment[] = []
     const currentDate = new Date(start)
 
+if (recurr === 'never') { 
+    payments.push({
+      id: crypto.randomUUID(),
+      due_date: currentDate.toISOString().split('T')[0],
+      amount: amount,
+      is_paid: false,
+      paid_date: null,
+    });
+    return payments;  // فقط یکی
+  }
     for (let i = 0; i < count; i++) {
       payments.push({
         id: crypto.randomUUID(),
@@ -135,66 +152,76 @@ export function InstallmentDialog({
   }
 
   function updateExistingPayments(
-    existingPayments: InstallmentPayment[],
-    newStartDate: string,
-    newCount: number,
-    newRecurrence: "daily" | "weekly" | "monthly" | "yearly",
-    newAmount: number,
-  ): InstallmentPayment[] {
-    // Sort existing payments by due_date
-    const sortedExisting = [...existingPayments].sort(
-      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
-    )
+  existingPayments: InstallmentPayment[],
+  newStartDate: string,
+  newCount: number,
+  newRecurrence: "daily" | "weekly" | "monthly" | "yearly" | "never",
+  newAmount: number,
+): InstallmentPayment[] {
+  // Sort existing payments by due_date
+  const sortedExisting = [...existingPayments].sort(
+    (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
+  );
 
-    // Generate new schedule dates
-    const newDates: string[] = []
-    const currentDate = new Date(newStartDate)
+  // Generate new schedule dates
+  const newDates: string[] = [];
+  const currentDate = new Date(newStartDate);
+
+  if (newRecurrence === "never") {
+    // برای never: فقط یک تاریخ (start_date)
+    newDates.push(currentDate.toISOString().split("T")[0]);
+  } else {
+    // برای بقیه: loop و اضافه کردن دوره
     for (let i = 0; i < newCount; i++) {
-      newDates.push(currentDate.toISOString().split("T")[0])
+      newDates.push(currentDate.toISOString().split("T")[0]);
       switch (newRecurrence) {
         case "daily":
-          currentDate.setDate(currentDate.getDate() + 1)
-          break
+          currentDate.setDate(currentDate.getDate() + 1);
+          break;
         case "weekly":
-          currentDate.setDate(currentDate.getDate() + 7)
-          break
+          currentDate.setDate(currentDate.getDate() + 7);
+          break;
         case "monthly":
-          currentDate.setMonth(currentDate.getMonth() + 1)
-          break
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          break;
         case "yearly":
-          currentDate.setFullYear(currentDate.getFullYear() + 1)
-          break
+          currentDate.setFullYear(currentDate.getFullYear() + 1);
+          break;
       }
     }
-
-    const newPayments: InstallmentPayment[] = []
-
-    for (let i = 0; i < newCount; i++) {
-      // Try to reuse existing payment at same index (preserve ID and paid status)
-      if (i < sortedExisting.length) {
-        newPayments.push({
-          id: sortedExisting[i].id, // Keep same ID
-          due_date: newDates[i], // Update date
-          amount: newAmount, // Update amount
-          is_paid: sortedExisting[i].is_paid, // Keep paid status
-          paid_date: sortedExisting[i].paid_date, // Keep paid date
-        })
-      } else {
-        // Need to create new payment
-        newPayments.push({
-          id: crypto.randomUUID(),
-          due_date: newDates[i],
-          amount: newAmount,
-          is_paid: false,
-        })
-      }
-    }
-
-    // Payments at index >= newCount will be deleted (handled by saveToServer)
-    // This happens when user reduces installment count
-
-    return newPayments
   }
+
+  const newPayments: InstallmentPayment[] = [];
+
+  // برای never: newCount همیشه 1 هست، اما force می‌کنیم
+  const effectiveCount = newRecurrence === "never" ? 1 : newCount;
+
+  for (let i = 0; i < effectiveCount; i++) {
+    // Try to reuse existing payment at same index (preserve ID and paid status)
+    if (i < sortedExisting.length) {
+      newPayments.push({
+        id: sortedExisting[i].id, // Keep same ID
+        due_date: newDates[i], // Update date
+        amount: newAmount, // Update amount
+        is_paid: sortedExisting[i].is_paid, // Keep paid status
+        paid_date: sortedExisting[i].paid_date, // Keep paid date
+      });
+    } else {
+      // Need to create new payment
+      newPayments.push({
+        id: crypto.randomUUID(),
+        due_date: newDates[i],
+        amount: newAmount,
+        is_paid: false,
+      });
+    }
+  }
+
+  // Payments at index >= newCount will be deleted (handled by saveToServer)
+  // This happens when user reduces installment count
+
+  return newPayments;
+}
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -204,6 +231,10 @@ export function InstallmentDialog({
       // Convert Persian date to Gregorian
       const [gy, gm, gd] = jalaliToGregorian(startDatePersian.year, startDatePersian.month, startDatePersian.day)
       const startDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
+
+      if (recurrence === 'never' && Number(installmentCount) !== 1) {
+      setInstallmentCount('1');  // force to 1
+}
 
       const installmentData: Installment = installment
         ? {
@@ -393,7 +424,25 @@ export function InstallmentDialog({
             </div>
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-              <div>
+            <div>
+                <Label htmlFor="recurrence" className="text-sm">
+                  دوره تکرار *
+                </Label>
+                <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">روزانه</SelectItem>
+                    <SelectItem value="weekly">هفتگی</SelectItem>
+                    <SelectItem value="monthly">ماهانه</SelectItem>
+                    <SelectItem value="yearly">سالانه</SelectItem>
+                    <SelectItem value="never">هرگز</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {recurrence !== 'never' && (<div>
                 <Label htmlFor="count" className="text-sm">
                   تعداد اقساط *
                 </Label>
@@ -408,24 +457,10 @@ export function InstallmentDialog({
                   className="text-right mt-2"
                   dir="rtl"
                 />
-              </div>
+                </div>
+              )}
 
-              <div>
-                <Label htmlFor="recurrence" className="text-sm">
-                  دوره تکرار *
-                </Label>
-                <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">روزانه</SelectItem>
-                    <SelectItem value="weekly">هفتگی</SelectItem>
-                    <SelectItem value="monthly">ماهانه</SelectItem>
-                    <SelectItem value="yearly">سالانه</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              
             </div>
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">

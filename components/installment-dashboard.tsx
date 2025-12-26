@@ -98,6 +98,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       weekly: "هفتگی",
       monthly: "ماهانه",
       yearly: "سالانه",
+      never: "هرگز",
     }
     return labels[recurrence as keyof typeof labels] || recurrence
   }
