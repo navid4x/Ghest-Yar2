@@ -12,8 +12,8 @@ const vazirmatn = Vazirmatn({
 })
 
 export const metadata: Metadata = {
-  title: "تقویم شمسی - مدیریت رویدادها",
-  description: "تقویم شمسی با امکان ثبت رویداد، یادآوری و نمایش تعطیلات رسمی ایران",
+  title: "مدیریت اقساط",
+  description: "قسط یار، مدیریت اقساط و یادآوری آن ها",
   generator: "v0.app",
   manifest: "/manifest.json",
   icons: {
