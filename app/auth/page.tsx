@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { loginOrSignup, getCurrentUser } from "@/lib/simple-auth"
 import { WifiOff, Wifi, Wallet } from "lucide-react"
+import { subscribeToPushNotifications } from '@/lib/push-notifications'
 
 export default function AuthPage() {
   const [email, setEmail] = useState("")
@@ -74,13 +75,13 @@ export default function AuthPage() {
           description: message.desc,
         })
 
-  if ('Notification' in window) {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      await subscribeUser();
-      console.log("notification access granted.")
-    }
-  }
+       if ('Notification' in window) {
+         const permission = await Notification.requestPermission();
+         if (permission === 'granted') {
+           await subscribeToPushNotifications(result.user.id);
+           console.log("notification access granted.")
+         }
+       }
 
         setTimeout(() => {
           router.push("/")
