@@ -387,18 +387,36 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
 }
 
 function mergeInstallments(local: Installment[], server: Installment[], realUserId?: string): Installment[] {
+  // سرور source of truth است
+  // فقط آیتم‌های local که در صف سینک هستند را نگه می‌داریم
+  
+  const queue = getSyncQueue()
+  const pendingIds = new Set(queue.map(op => op.data.id || op.data.installmentId).filter(Boolean))
+  
   const merged: Installment[] = []
-  const seen = new Set<string>()
+  const serverIds = new Set<string>()
 
+  // اول تمام داده‌های سرور را اضافه کن
   for (const serverItem of server) {
     merged.push(serverItem)
-    seen.add(serverItem.id)
+    serverIds.add(serverItem.id)
   }
 
+  // فقط آیتم‌های local که pending هستند و در سرور نیستند را اضافه کن
   for (const localItem of local) {
-    if (!seen.has(localItem.id)) {
-      merged.push(localItem)
+    // اگر در سرور هست، از سرور استفاده کن (قبلاً اضافه شده)
+    if (serverIds.has(localItem.id)) {
+      continue
     }
+    
+    // اگر در صف سینک هست، نگهش دار (هنوز آپلود نشده)
+    if (pendingIds.has(localItem.id)) {
+      merged.push(localItem)
+      continue
+    }
+    
+    // در غیر این صورت، این آیتم در سرور حذف شده - نگهش ندار
+    console.log("[v0] Item deleted on server, removing from local:", localItem.id)
   }
 
   return merged
