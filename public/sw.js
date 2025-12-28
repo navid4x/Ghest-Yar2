@@ -35,6 +35,14 @@ self.addEventListener("activate", (event) => {
   return self.clients.claim()
 })
 
+// تابع برای ارسال پیام به کلاینت
+async function sendMessageToClient(message) {
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+  clients.forEach((client) => {
+    client.postMessage(message)
+  })
+}
+
 // مدیریت درخواست‌ها
 self.addEventListener("fetch", (event) => {
   const { request } = event
@@ -47,6 +55,26 @@ self.addEventListener("fetch", (event) => {
 
   // استراتژی Network First برای API و Supabase
   if (url.pathname.startsWith("/api/") || url.origin.includes("supabase.co")) {
+    // فقط درخواست‌های GET را کش می‌کنیم
+    if (request.method !== "GET") {
+      // درخواست‌های POST/PUT/DELETE را مستقیماً ارسال می‌کنیم
+      event.respondWith(
+        fetch(request).catch(async (error) => {
+          // اگر آفلاین است، به کلاینت اطلاع بده
+          await sendMessageToClient({
+            type: "OFFLINE_ERROR",
+            message: "شما آفلاین هستید. این عملیات نیاز به اتصال اینترنت دارد.",
+          })
+          return new Response(JSON.stringify({ error: "Offline - Write operation failed" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          })
+        }),
+      )
+      return
+    }
+
+    // Network First برای GET requests
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -59,19 +87,35 @@ self.addEventListener("fetch", (event) => {
           }
           return response
         })
-        .catch(() => {
+        .catch(async () => {
+          console.log("[SW] Network failed, trying cache:", request.url)
           // اگر آفلاین بود، از کش استفاده کن
-          return caches.match(request).then((cached) => {
-            if (cached) {
-              console.log("[SW] Serving from cache (offline):", request.url)
-              return cached
-            }
-            // اگر در کش نبود، یک پاسخ خطا برگردان
-            return new Response(JSON.stringify({ error: "Offline - No cached data" }), {
+          const cached = await caches.match(request)
+          
+          if (cached) {
+            console.log("[SW] Serving from cache (offline):", request.url)
+            // داده از کش بدون نوتیف برگردانده می‌شود
+            return cached
+          }
+          
+          // اگر در کش نبود، به کلاینت خطا بده
+          console.log("[SW] No cache found for:", request.url)
+          await sendMessageToClient({
+            type: "CACHE_MISS",
+            message: "داده‌ای در حافظه محلی یافت نشد. لطفاً به اینترنت متصل شوید.",
+          })
+          
+          return new Response(
+            JSON.stringify({ 
+              error: "Offline - No cached data",
+              offline: true,
+              url: request.url 
+            }), 
+            {
               status: 503,
               headers: { "Content-Type": "application/json" },
-            })
-          })
+            }
+          )
         }),
     )
     return
@@ -98,7 +142,7 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => {
           // برای صفحات HTML، صفحه اصلی را برگردان
-          if (request.headers.get("accept").includes("text/html")) {
+          if (request.headers.get("accept")?.includes("text/html")) {
             return caches.match("/")
           }
         })
