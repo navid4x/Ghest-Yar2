@@ -38,7 +38,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   async function loadData() {
     setLoading(true)
     try {
-      const data = await loadInstallments(userId)
+      const data = await loadInstallments()
       setInstallments(data)
     } catch (error) {
       console.error("[v0] Error loading installments:", error)
@@ -60,7 +60,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }
 
   async function handleTogglePayment(installmentId: string, paymentId: string) {
-    await togglePayment(userId, installmentId, paymentId)
+    await togglePayment(installmentId, paymentId)
     await loadData()
   }
 

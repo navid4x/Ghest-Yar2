@@ -276,7 +276,7 @@ if (recurr === 'never') {
             updated_at: new Date().toISOString(),
           }
 
-      await saveInstallment(userId, installmentData)
+      await saveInstallment(installmentData)
 
       toast({
         title: installment ? "قسط ویرایش شد" : "قسط ایجاد شد",
@@ -304,7 +304,7 @@ if (recurr === 'never') {
     setLoading(true)
 
     try {
-      await deleteInstallment(userId, installment.id)
+      await deleteInstallment(installment.id)
 
       toast({
         title: "قسط حذف شد",
