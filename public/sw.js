@@ -78,8 +78,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // کش کردن پاسخ موفق
-          if (response && response.status === 200) {
+          // فقط درخواست‌های GET را کش می‌کنیم
+          if (response && response.status === 200 && request.method === "GET") {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
               cache.put(request, responseClone)
@@ -131,8 +131,8 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(request)
         .then((response) => {
-          // کش کردن فایل‌های جدید
-          if (response && response.status === 200) {
+          // فقط درخواست‌های GET را کش می‌کنیم
+          if (response && response.status === 200 && request.method === "GET") {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
               cache.put(request, responseClone)
