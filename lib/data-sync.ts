@@ -41,11 +41,20 @@ function clearSyncQueue(): void {
 // 📥 LOAD INSTALLMENTS
 // ============================================
 export async function loadInstallments(userId: string): Promise<Installment[]> {
+  console.log("[v0] Loading installments for user:", userId)
+  console.log("[v0] Online status:", navigator.onLine)
+  
   // ابتدا داده محلی را بخوان
   const localData = getLocalInstallments(userId)
+  console.log("[v0] Local data count:", localData.length)
+  
+  // چک کردن صف سینک
+  const queue = getSyncQueue()
+  console.log("[v0] Pending operations in queue:", queue.length)
   
   // اگر آفلاین است، فقط داده محلی را برگردان
   if (!navigator.onLine) {
+    console.log("[v0] Offline mode - returning local data only")
     return localData
   }
 
@@ -57,13 +66,16 @@ export async function loadInstallments(userId: string): Promise<Installment[]> {
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
+      console.log("[v0] No authenticated user, returning local data")
       return localData
     }
 
     const realUserId = user.id
+    console.log("[v0] Real user ID:", realUserId)
 
     // اگر userId متفاوت است، migrate کن
     if (userId !== realUserId && localData.length > 0) {
+      console.log("[v0] Migrating data from", userId, "to", realUserId)
       const migratedData = localData.map((inst) => ({
         ...inst,
         user_id: realUserId,
@@ -85,13 +97,17 @@ export async function loadInstallments(userId: string): Promise<Installment[]> {
     }
 
     // سینک کردن تغییرات pending
+    console.log("[v0] Starting sync process...")
     await processSyncQueue(realUserId)
     
     // دریافت داده از سرور
+    console.log("[v0] Fetching from server...")
     const serverData = await fetchFromServer(realUserId)
+    console.log("[v0] Server data count:", serverData.length)
     
     // ادغام داده محلی و سرور
     const merged = mergeInstallments(getLocalInstallments(realUserId), serverData, realUserId)
+    console.log("[v0] Merged data count:", merged.length)
     
     // ذخیره نهایی
     saveLocalInstallments(realUserId, merged)
