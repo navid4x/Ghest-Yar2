@@ -46,123 +46,64 @@ self.addEventListener("fetch", (event) => {
   }
 
   // استراتژی Network First برای API و Supabase
-  if (url.pathname.startsWith("/api/") || url.hostname.includes("supabase.co")) {  // یا دقیق‌تر: url.hostname.endsWith(".supabase.co")
+  if (url.pathname.startsWith("/api/") || url.origin.includes("supabase.co")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // کش کردن پاسخ موفق
+          if (response && response.status === 200) {
+            const responseClone = response.clone()
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, responseClone)
+            })
+          }
+          return response
+        })
+        .catch(() => {
+          // اگر آفلاین بود، از کش استفاده کن
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              console.log("[SW] Serving from cache (offline):", request.url)
+              return cached
+            }
+            // اگر در کش نبود، یک پاسخ خطا برگردان
+            return new Response(JSON.stringify({ error: "Offline - No cached data" }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            })
+          })
+        }),
+    )
+    return
+  }
 
+  // استراتژی Cache First برای فایل‌های استاتیک
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // فقط پاسخ‌های موفق GET رو کش کن (POST و بقیه کش نشن)
-        if (request.method === "GET" && response && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-            console.log("[SW] Cached API response:", request.url);
-          });
-        }
-        return response;
-      })
-      .catch(async () => {
-        // آفلاین یا خطای شبکه
-        console.log("[SW] Offline/Network failed → fallback to cache:", request.url);
+    caches.match(request).then((cached) => {
+      if (cached) {
+        console.log("[SW] Serving from cache:", request.url)
+        return cached
+      }
 
-        // اول سعی کن از کش بگیر (فقط اگر قبلاً کش شده باشه، حتی برای GET)
-        const cached = await caches.match(request);
-        if (cached) {
-          console.log("[SW] Served from cache:", request.url);
-          return cached;
-        }
-
-        // اگر در کش نبود: یک Response معتبر برگردون (بدون کرش!)
-        // برای APIها معمولاً JSON برمی‌گردونیم
-        return new Response(
-          JSON.stringify({ 
-            error: "اتصال اینترنت برقرار نیست.", 
-            message: "لطفاً اتصال خود را چک کنید و دوباره تلاش کنید." 
-          }),
-          {
-            status: 503,
-            statusText: "Service Unavailable",
-            headers: { 
-              "Content-Type": "application/json; charset=utf-8" 
-            },
+      return fetch(request)
+        .then((response) => {
+          // کش کردن فایل‌های جدید
+          if (response && response.status === 200) {
+            const responseClone = response.clone()
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, responseClone)
+            })
           }
-        );
-      })
-  );
-
-  return;  // مهم: جلوگیری از اجرای بقیه کدهای fetch listener برای این درخواست‌ها
-}
-
-event.respondWith(
-  (async () => {
-    const isOnline = navigator.onLine;
-
-    // فقط GETها رو با استراتژی Network First + Cache Fallback مدیریت کن
-    if (request.method === 'GET') {
-      // اگر آنلاین هستیم: اول شبکه
-      if (isOnline) {
-        try {
-          const response = await fetch(request);
-
-          // اگر پاسخ معتبر بود، کش کن
-          if (response && request.method === "GET"  response.status === 200) {
-            const responseClone = response.clone();
-            const cache = await caches.open(DYNAMIC_CACHE);
-            await cache.put(request, responseClone);
-            console.log("[SW] Cached:", request.url);
+          return response
+        })
+        .catch(() => {
+          // برای صفحات HTML، صفحه اصلی را برگردان
+          if (request.headers.get("accept").includes("text/html")) {
+            return caches.match("/")
           }
-
-          return response;
-        } catch (err) {
-          // شبکه شکست → آفلاین محسوب شو و به کش برو
-          console.log("[SW] Network failed → fallback to cache:", request.url);
-        }
-      }
-
-      // اینجا یا آفلاین هستیم یا شبکه شکست خورده
-      const cachedResponse = await caches.match(request);
-      if (cachedResponse) {
-        console.log("[SW] Served from cache:", request.url);
-        return cachedResponse;
-      }
-
-      // اگر در کش هم نبود → یک Response ساده و بی‌خطر برگردون (بدون خطا!)
-      if (request.headers.get("accept")?.includes("text/html")) {
-        // برای صفحات HTML، صفحه اصلی رو برگردون اگر کش شده باشه
-        const fallback = await caches.match("/");
-        if (fallback) return fallback;
-      }
-
-      // آخرین راه: پاسخ خالی اما معتبر (هیچ خطایی در کنسول نمی‌ده)
-      return new Response("", {
-        status: 503,
-        statusText: "Offline",
-        headers: { "Content-Type": "text/plain" }
-      });
-    }
-
-    // برای همه درخواست‌های غیر GET (POST, PUT, DELETE و ...)
-    else {
-      if (isOnline) {
-        try {
-          return await fetch(request);
-        } catch (err) {
-          // شبکه شکست → آفلاین
-        }
-      }
-
-      // آفلاین + غیر GET → پاسخ معتبر (برای جلوگیری از کرش)
-      return new Response(
-        JSON.stringify({ error: "اتصال اینترنت برقرار نیست." }),
-        {
-          status: 503,
-          statusText: "Offline",
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-  })()
-);
+        })
+    }),
+  )
 })
 
 // مدیریت Push Notifications

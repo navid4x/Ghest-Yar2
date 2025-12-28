@@ -145,11 +145,11 @@ export async function logout(): Promise<void> {
   }
 
   // پاک کردن همه چیز
-  localStorage.removeItem("auth_user")
-  localStorage.removeItem("password_hash")
-  localStorage.removeItem("session_token")
-  localStorage.removeItem("refresh_token")
-
+ // localStorage.removeItem("auth_user")
+ // localStorage.removeItem("password_hash")
+ // localStorage.removeItem("session_token")
+ // localStorage.removeItem("refresh_token")
+  localStorage.clear();
   console.log("[Auth] 🚪 خروج موفق")
 }
 
