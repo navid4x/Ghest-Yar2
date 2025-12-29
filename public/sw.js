@@ -162,9 +162,7 @@ self.addEventListener("push", (event) => {
       requireInteraction: true, // نوتیف تا کلیک نشود بسته نمیشه
      actions: [
         { action: "open", title: "مشاهده" },
-     //  { action: "close", title: "بستن" },
-      // { action: "unsubscribe", title: "غیر فعال سازی" },
-
+ 
      ],
     }
 
