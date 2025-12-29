@@ -1,13 +1,13 @@
 "use client"
 
 import { InstallmentDashboard } from "@/components/installment-dashboard"
+import { NotificationSettings } from "@/components/notification-settings"
 import { Wallet, LogOut } from "lucide-react"
 import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Badge } from "@/components/ui/badge"
 import { getPendingOperationsCount } from "@/lib/data-sync"
 
 export default function Home() {
@@ -39,7 +39,6 @@ export default function Home() {
       setIsOnline(online)
       if (online) {
         console.log("[v0] Network online - refreshing user and syncing...")
-        // رفرش کردن اطلاعات کاربر
         const refreshedUser = await getCurrentUser()
         if (refreshedUser) {
           setUser(refreshedUser)
@@ -90,16 +89,18 @@ export default function Home() {
           </div>
 
           <div className="flex items-center justify-start">
-
             <Button onClick={handleLogout} variant="ghost" size="sm">
               <LogOut className="h-4 w-4" />
-              
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* 🔔 بخش تنظیمات نوتیفیکیشن */}
+        <NotificationSettings userId={user.id} />
+        
+        {/* داشبورد اقساط */}
         <InstallmentDashboard userId={user.id} />
       </main>
     </div>

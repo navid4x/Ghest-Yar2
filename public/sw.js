@@ -1,90 +1,93 @@
-const CACHE_NAME = "ghestyar-v3"
-const STATIC_CACHE = "ghestyar-static-v3"
-const DYNAMIC_CACHE = "ghestyar-dynamic-v3"
+const CACHE_VERSION = "v4"
+const STATIC_CACHE = `ghestyar-static-${CACHE_VERSION}`
+const DYNAMIC_CACHE = `ghestyar-dynamic-${CACHE_VERSION}`
 
-// فایل‌های استاتیک که باید در نصب کش شوند
-const STATIC_ASSETS = ["/", "/auth", "/manifest.json", "/icon-192.jpg", "/icon-512.jpg"]
+// فایل‌های استاتیک
+const STATIC_ASSETS = [
+  "/",
+  "/auth",
+  "/manifest.json",
+  "/icon-192.jpg",
+  "/icon-512.jpg",
+]
 
-// نصب Service Worker و کش کردن فایل‌های استاتیک
+// ========================================
+// 📥 نصب Service Worker
+// ========================================
 self.addEventListener("install", (event) => {
-  console.log("[SW] Installing...")
+  console.log("[SW] Installing version", CACHE_VERSION)
+  
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log("[SW] Caching static assets")
       return cache.addAll(STATIC_ASSETS)
-    }),
+    })
   )
+  
   self.skipWaiting()
 })
 
-// فعال‌سازی و پاکسازی کش‌های قدیمی
+// ========================================
+// 🔄 فعال‌سازی و پاکسازی کش‌های قدیمی
+// ========================================
 self.addEventListener("activate", (event) => {
-  console.log("[SW] Activating...")
+  console.log("[SW] Activating version", CACHE_VERSION)
+  
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+          if (
+            cacheName !== STATIC_CACHE && 
+            cacheName !== DYNAMIC_CACHE
+          ) {
             console.log("[SW] Deleting old cache:", cacheName)
             return caches.delete(cacheName)
           }
-        }),
+        })
       )
-    }),
+    })
   )
+  
   return self.clients.claim()
 })
 
-// تابع برای ارسال پیام به کلاینت
-async function sendMessageToClient(message) {
-  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
-  clients.forEach((client) => {
-    client.postMessage(message)
-  })
-}
-
-// مدیریت درخواست‌ها
+// ========================================
+// 🌐 مدیریت درخواست‌ها
+// ========================================
 self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // نادیده گرفتن درخواست‌های خارجی (غیر از Supabase)
+  // نادیده گرفتن درخواست‌های خارجی
   if (!url.origin.includes(self.location.origin) && !url.origin.includes("supabase.co")) {
     return
   }
 
-  // نادیده گرفتن درخواست‌های auth - این‌ها نباید کش بشن
+  // نادیده گرفتن auth requests
   if (url.pathname.includes("/auth/v1/")) {
-    return // اجازه بده مستقیم به سرور برسه
+    return
   }
 
-  // استراتژی Network First برای API و Supabase
+  // درخواست‌های API و Supabase
   if (url.pathname.startsWith("/api/") || url.origin.includes("supabase.co")) {
-    // فقط درخواست‌های GET را کش می‌کنیم
     if (request.method !== "GET") {
-      // درخواست‌های POST/PUT/DELETE را مستقیماً ارسال می‌کنیم
       event.respondWith(
-        fetch(request).catch(async (error) => {
-          // اگر آفلاین است، به کلاینت اطلاع بده
-          await sendMessageToClient({
-            type: "OFFLINE_ERROR",
-            message: "شما آفلاین هستید. این عملیات نیاز به اتصال اینترنت دارد.",
-          })
-          return new Response(JSON.stringify({ error: "Offline - Write operation failed" }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          })
-        }),
+        fetch(request).catch(() => {
+          return new Response(
+            JSON.stringify({ error: "Offline - Write operation failed" }),
+            { status: 503, headers: { "Content-Type": "application/json" } }
+          )
+        })
       )
       return
     }
 
-    // Network First برای GET requests
+    // Network First برای GET
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // فقط درخواست‌های GET را کش می‌کنیم
-          if (response && response.status === 200 && request.method === "GET") {
+          if (response && response.status === 200) {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
               cache.put(request, responseClone)
@@ -92,51 +95,30 @@ self.addEventListener("fetch", (event) => {
           }
           return response
         })
-        .catch(async () => {
-          console.log("[SW] Network failed, trying cache:", request.url)
-          // اگر آفلاین بود، از کش استفاده کن
-          const cached = await caches.match(request)
-          
-          if (cached) {
-            console.log("[SW] Serving from cache (offline):", request.url)
-            // داده از کش بدون نوتیف برگردانده می‌شود
-            return cached
-          }
-          
-          // اگر در کش نبود، به کلاینت خطا بده
-          console.log("[SW] No cache found for:", request.url)
-          await sendMessageToClient({
-            type: "CACHE_MISS",
-            message: "داده‌ای در حافظه محلی یافت نشد. لطفاً به اینترنت متصل شوید.",
-          })
-          
-          return new Response(
-            JSON.stringify({ 
-              error: "Offline - No cached data",
-              offline: true,
-              url: request.url 
-            }), 
-            {
-              status: 503,
-              headers: { "Content-Type": "application/json" },
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              return cached
             }
-          )
-        }),
+            return new Response(
+              JSON.stringify({ error: "Offline - No cached data" }),
+              { status: 503, headers: { "Content-Type": "application/json" } }
+            )
+          })
+        })
     )
     return
   }
 
-  // استراتژی Cache First برای فایل‌های استاتیک
+  // Cache First برای فایل‌های استاتیک
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) {
-        console.log("[SW] Serving from cache:", request.url)
         return cached
       }
 
       return fetch(request)
         .then((response) => {
-          // فقط درخواست‌های GET و پاسخ‌های موفق را کش می‌کنیم
           if (response && response.status === 200 && request.method === "GET") {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -145,63 +127,95 @@ self.addEventListener("fetch", (event) => {
           }
           return response
         })
-        .catch(async (error) => {
-          console.log("[SW] Fetch failed for:", request.url, error)
-          // برای صفحات HTML، صفحه اصلی را برگردان
+        .catch(() => {
           if (request.headers.get("accept")?.includes("text/html")) {
-            const fallback = await caches.match("/")
-            if (fallback) return fallback
+            return caches.match("/")
           }
-          // اگر هیچ fallback نبود، یک response خالی برگردان
-          return new Response("Network error", {
-            status: 408,
-            statusText: "Request Timeout",
-          })
+          return new Response("Network error", { status: 408 })
         })
-    }),
+    })
   )
 })
 
-// مدیریت Push Notifications
+// ========================================
+// 🔔 دریافت Push Notification
+// ========================================
 self.addEventListener("push", (event) => {
-  if (!event.data) return
+  console.log("[SW] Push notification received")
 
-  const data = event.data.json()
-  const options = {
-    body: data.body || "یک اقساط سررسید شده است",
-    icon: "/icon-192.jpg",
-    badge: "/icon-192.jpg",
-    data: { url: data.url || "/" },
-    vibrate: [200, 100, 200],
-    tag: "installment-reminder",
-    requireInteraction: false,
+  if (!event.data) {
+    console.log("[SW] No data in push event")
+    return
   }
 
-  event.waitUntil(self.registration.showNotification(data.title || "یادآوری قسط", options))
+  try {
+    const data = event.data.json()
+    console.log("[SW] Push data:", data)
+
+    const options = {
+      body: data.body || "یک قسط سررسید شده است",
+      icon: "/icon-192.jpg",
+      badge: "/icon-192.jpg",
+      data: { url: data.url || "/" },
+      vibrate: [200, 100, 200],
+      tag: "installment-reminder",
+      requireInteraction: true, // نوتیف تا کلیک نشود بسته نمیشه
+      actions: [
+        { action: "open", title: "مشاهده" },
+        { action: "close", title: "بستن" },
+      ],
+    }
+
+    event.waitUntil(
+      self.registration.showNotification(
+        data.title || "یادآوری قسط", 
+        options
+      )
+    )
+  } catch (error) {
+    console.error("[SW] Error processing push:", error)
+  }
 })
 
-// مدیریت کلیک روی نوتیفیکیشن
+// ========================================
+// 👆 کلیک روی نوتیفیکیشن
+// ========================================
 self.addEventListener("notificationclick", (event) => {
+  console.log("[SW] Notification clicked:", event.action)
+  
   event.notification.close()
 
+  if (event.action === "close") {
+    return
+  }
+
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // اگر تب باز بود، فوکوس کن
-      for (const client of clientList) {
-        if (client.url === event.notification.data.url && "focus" in client) {
-          return client.focus()
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        const url = event.notification.data?.url || "/"
+
+        // اگر تب باز بود، فوکوس کن
+        for (const client of clientList) {
+          if (client.url === url && "focus" in client) {
+            return client.focus()
+          }
         }
-      }
-      // اگر تب باز نبود، تب جدید باز کن
-      if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url)
-      }
-    }),
+
+        // اگر تب باز نبود، تب جدید باز کن
+        if (clients.openWindow) {
+          return clients.openWindow(url)
+        }
+      })
   )
 })
 
-// همگام‌سازی در پس‌زمینه
+// ========================================
+// 🔄 همگام‌سازی پس‌زمینه
+// ========================================
 self.addEventListener("sync", (event) => {
+  console.log("[SW] Background sync:", event.tag)
+  
   if (event.tag === "sync-installments") {
     event.waitUntil(syncInstallments())
   }
@@ -209,11 +223,11 @@ self.addEventListener("sync", (event) => {
 
 async function syncInstallments() {
   try {
-    console.log("[SW] Background sync: Syncing installments...")
-    // این تابع توسط کد اصلی فراخوانی می‌شود
+    console.log("[SW] Syncing installments in background...")
+    // این توسط کد اصلی مدیریت میشه
     return true
   } catch (error) {
-    console.error("[SW] Background sync failed:", error)
+    console.error("[SW] Sync failed:", error)
     throw error
   }
 }

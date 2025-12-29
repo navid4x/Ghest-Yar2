@@ -5,21 +5,34 @@ import { createClient } from "@supabase/supabase-js"
 // تنظیم VAPID
 webPush.setVapidDetails(
   process.env.VAPID_SUBJECT || "mailto:admin@example.com",
-  process.env.VAPID_PUBLIC_KEY || "",
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "",
   process.env.VAPID_PRIVATE_KEY || "",
 )
 
+// Supabase با Service Role Key
 const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
 )
 
+// ========================================
+// 📤 POST: ارسال نوتیف دستی
+// ========================================
 export async function POST(request: NextRequest) {
   try {
     const { userId, title, body, url } = await request.json()
 
     // گرفتن subscription های کاربر
-    const { data: subscriptions, error } = await supabase.from("push_subscriptions").select("*").eq("user_id", userId)
+    const { data: subscriptions, error } = await supabase
+      .from("push_subscriptions")
+      .select("*")
+      .eq("user_id", userId)
 
     if (error || !subscriptions?.length) {
       return NextResponse.json({ error: "No subscriptions found" }, { status: 404 })
@@ -27,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // ارسال به همه دستگاه‌های کاربر
     const results = await Promise.allSettled(
-      subscriptions.map((sub) => {
+      subscriptions.map(async (sub) => {
         const pushSubscription = {
           endpoint: sub.endpoint,
           keys: {
@@ -35,7 +48,23 @@ export async function POST(request: NextRequest) {
             auth: sub.auth,
           },
         }
-        return webPush.sendNotification(pushSubscription, JSON.stringify({ title, body, url: url || "/" }))
+        
+        try {
+          await webPush.sendNotification(
+            pushSubscription,
+            JSON.stringify({ title, body, url: url || "/" })
+          )
+          return { success: true, endpoint: sub.endpoint }
+        } catch (err: any) {
+          // اگر subscription منقضی شده، حذفش کن
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            await supabase
+              .from("push_subscriptions")
+              .delete()
+              .eq("endpoint", sub.endpoint)
+          }
+          throw err
+        }
       }),
     )
 
@@ -48,12 +77,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET برای cron job - چک روزانه اقساط
+// ========================================
+// ⏰ GET: Cron Job - چک خودکار اقساط
+// ========================================
 export async function GET(request: NextRequest) {
   // چک کردن auth header برای امنیت cron
   const authHeader = request.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    // در development اجازه بده
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -61,74 +91,135 @@ export async function GET(request: NextRequest) {
 
   try {
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split("T")[0]
 
-    // تاریخ فردا برای یادآوری
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowStr = tomorrow.toISOString().split("T")[0]
+    console.log(`[Cron] Checking installments for ${todayStr}`)
 
-    // گرفتن اقساط سررسید امروز
-    const { data: todayPayments } = await supabase
-      .from("installment_payments")
+    // ========================================
+    // 1️⃣ گرفتن تمام اقساط فعال
+    // ========================================
+    const { data: installments, error: installmentsError } = await supabase
+      .from("installments")
       .select(`
-        id, due_date, amount, is_paid,
-        installment:installments!inner(id, user_id, creditor_name, item_description)
+        id,
+        user_id,
+        creditor_name,
+        reminder_days,
+        installment_payments!inner(
+          id,
+          due_date,
+          amount,
+          is_paid
+        )
       `)
-      .eq("due_date", todayStr)
-      .eq("is_paid", false)
 
-    // گرفتن اقساط سررسید فردا
-    const { data: tomorrowPayments } = await supabase
-      .from("installment_payments")
-      .select(`
-        id, due_date, amount, is_paid,
-        installment:installments!inner(id, user_id, creditor_name, item_description)
-      `)
-      .eq("due_date", tomorrowStr)
-      .eq("is_paid", false)
+    if (installmentsError) {
+      throw installmentsError
+    }
 
+    if (!installments || installments.length === 0) {
+      return NextResponse.json({ message: "No installments found", sent: 0 })
+    }
+
+    // ========================================
+    // 2️⃣ پردازش هر قسط
+    // ========================================
     const notifications: Array<{ userId: string; title: string; body: string }> = []
 
-    // نوتیفیکیشن‌های امروز
-    todayPayments?.forEach((payment: any) => {
-      notifications.push({
-        userId: payment.installment.user_id,
-        title: "یادآوری قسط امروز",
-        body: `قسط ${payment.installment.creditor_name} به مبلغ ${new Intl.NumberFormat("fa-IR").format(payment.amount)} تومان امروز سررسید است`,
-      })
-    })
+    for (const installment of installments) {
+      const payments = Array.isArray(installment.installment_payments) 
+        ? installment.installment_payments 
+        : [installment.installment_payments]
 
-    // نوتیفیکیشن‌های فردا
-    tomorrowPayments?.forEach((payment: any) => {
-      notifications.push({
-        userId: payment.installment.user_id,
-        title: "یادآوری قسط فردا",
-        body: `قسط ${payment.installment.creditor_name} به مبلغ ${new Intl.NumberFormat("fa-IR").format(payment.amount)} تومان فردا سررسید است`,
-      })
-    })
+      for (const payment of payments) {
+        if (payment.is_paid) continue
 
-    // ارسال نوتیفیکیشن‌ها
+        const dueDate = new Date(payment.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+
+        // محاسبه تاریخ یادآوری
+        const reminderDate = new Date(dueDate)
+        reminderDate.setDate(reminderDate.getDate() - installment.reminder_days)
+
+        // فرمت مبلغ به فارسی
+        const amountFormatted = new Intl.NumberFormat("fa-IR").format(payment.amount)
+
+        // ========================================
+        // 📅 چک کردن: آیا امروز روز یادآوری است؟
+        // ========================================
+        if (
+          installment.reminder_days > 0 &&
+          reminderDate.getTime() === today.getTime()
+        ) {
+          notifications.push({
+            userId: installment.user_id,
+            title: "🔔 یادآوری قسط",
+            body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان ${installment.reminder_days} روز دیگر سررسید می‌شود`,
+          })
+        }
+
+        // ========================================
+        // 📅 چک کردن: آیا امروز روز سررسید است؟
+        // ========================================
+        if (dueDate.getTime() === today.getTime()) {
+          notifications.push({
+            userId: installment.user_id,
+            title: "⚠️ قسط امروز سررسید است!",
+            body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان امروز سررسید است`,
+          })
+        }
+      }
+    }
+
+    if (notifications.length === 0) {
+      return NextResponse.json({ 
+        message: "No notifications to send today", 
+        checked: installments.length,
+        sent: 0 
+      })
+    }
+
+    // ========================================
+    // 3️⃣ ارسال نوتیفیکیشن‌ها
+    // ========================================
     let sentCount = 0
-    for (const notif of notifications) {
-      const { data: subscriptions } = await supabase.from("push_subscriptions").select("*").eq("user_id", notif.userId)
+    const failedUsers: string[] = []
 
-      if (subscriptions?.length) {
-        for (const sub of subscriptions) {
-          try {
-            await webPush.sendNotification(
-              {
-                endpoint: sub.endpoint,
-                keys: { p256dh: sub.p256dh, auth: sub.auth },
-              },
-              JSON.stringify({ title: notif.title, body: notif.body, url: "/" }),
-            )
-            sentCount++
-          } catch (err: any) {
-            // اگر subscription منقضی شده، حذفش کن
-            if (err.statusCode === 410) {
-              await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
-            }
+    for (const notif of notifications) {
+      const { data: subscriptions } = await supabase
+        .from("push_subscriptions")
+        .select("*")
+        .eq("user_id", notif.userId)
+
+      if (!subscriptions?.length) {
+        failedUsers.push(notif.userId)
+        continue
+      }
+
+      for (const sub of subscriptions) {
+        try {
+          await webPush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            JSON.stringify({
+              title: notif.title,
+              body: notif.body,
+              url: "/",
+            }),
+          )
+          sentCount++
+        } catch (err: any) {
+          console.error(`[Cron] Failed to send to ${sub.endpoint}:`, err.message)
+          
+          // اگر subscription منقضی شده، حذفش کن
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            await supabase
+              .from("push_subscriptions")
+              .delete()
+              .eq("endpoint", sub.endpoint)
           }
         }
       }
@@ -136,11 +227,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      checked: { today: todayPayments?.length || 0, tomorrow: tomorrowPayments?.length || 0 },
+      checked: installments.length,
+      notificationsQueued: notifications.length,
       sent: sentCount,
+      failedUsers: failedUsers.length > 0 ? failedUsers : undefined,
     })
-  } catch (error) {
-    console.error("[v0] Cron error:", error)
-    return NextResponse.json({ error: "Cron job failed" }, { status: 500 })
+  } catch (error: any) {
+    console.error("[Cron] Error:", error)
+    return NextResponse.json({ 
+      error: "Cron job failed", 
+      message: error.message 
+    }, { status: 500 })
   }
 }
