@@ -91,15 +91,15 @@ return (
       </Button>
     </div>
 
-    <div className="grid grid-cols-7 gap-1 mb-1">
+    <div className="grid grid-cols-7 bg-primary text-sidebar-primary-foreground border-0 rounded-full mb-0 gap-1">
       {[...persianWeekDaysShort].reverse().map((day) => (
-        <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+        <div key={day} className="text-sm font-medium opacity-100 text-center px-0 mx-0 py-1.5">
           {day}
         </div>
       ))}
     </div>
 
-    <div className="grid grid-cols-7 gap-1 [direction:rtl]">
+    <div className="grid grid-cols-7 [direction:rtl] gap-1 my-0">
       {calendarDays.map((day, index) => (
         <button
           key={index}
