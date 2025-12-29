@@ -92,11 +92,11 @@ function toPersianDigits(str: string | number): string {
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-0 mb-1">
             {persianWeekDaysShort.map((day) => (
               <div
                 key={day}
-                className="h-8 w-8 flex items-center justify-center text-xs font-medium text-muted-foreground"
+                className="w-8 flex items-center justify-center text-xs font-medium text-background gap-0 h-7 bg-slate-600"
               >
                 {toPersianDigits(day)}
               </div>

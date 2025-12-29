@@ -91,7 +91,7 @@ return (
       </Button>
     </div>
 
-    <div className="grid grid-cols-7 bg-primary text-sidebar-primary-foreground border-0 rounded-full mb-0 gap-1">
+    <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-0 gap-1 bg-slate-600">
       {[...persianWeekDaysShort].reverse().map((day) => (
         <div key={day} className="text-sm font-medium opacity-100 text-center px-0 mx-0 py-1.5">
           {day}

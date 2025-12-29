@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Installment, InstallmentPayment } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
-import { Trash2, Calculator } from "lucide-react"
+import { Trash2, SaveIcon, Calculator } from "lucide-react"
 import {
   gregorianToJalali,
   jalaliToGregorian,
@@ -511,6 +511,10 @@ export function InstallmentDialog({
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button type="submit" disabled={loading} className="rounded-full px-8 w-full sm:w-auto">
+                <SaveIcon className="h-4 w-4" />
+              {loading ? "در حال ذخیره..." : installment ? "ذخیره تغییرات" : "ایجاد قسط"}
+            </Button>
             {installment && (
               <Button
                 type="button"
@@ -523,9 +527,6 @@ export function InstallmentDialog({
                 حذف
               </Button>
             )}
-            <Button type="submit" disabled={loading} className="rounded-full px-8 w-full sm:w-auto">
-              {loading ? "در حال ذخیره..." : installment ? "ذخیره تغییرات" : "ایجاد قسط"}
-            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

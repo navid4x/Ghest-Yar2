@@ -317,15 +317,15 @@ const totalDebt = installments.reduce((sum, inst) => {
         </Card>
       )}
 
-      <Tabs defaultValue="list" className="w-full" onValueChange={setActiveView}>
+      <Tabs defaultValue="calendar" className="w-full" onValueChange={setActiveView}>
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="calendar" className="gap-2">
-            تقویم
-            <CalendarDays className="h-4 w-4" />
-          </TabsTrigger>
           <TabsTrigger value="list" className="gap-2">
             لیست اقساط
             <List className="h-4 w-4" />
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-2">
+            تقویم
+            <CalendarDays className="h-4 w-4" />
           </TabsTrigger>
         </TabsList>
 
