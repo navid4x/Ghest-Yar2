@@ -159,11 +159,11 @@ self.addEventListener("push", (event) => {
       data: { url: data.url || "/" },
       vibrate: [200, 100, 200],
       tag: "installment-reminder",
-      requireInteraction: true, // نوتیف تا کلیک نشود بسته نمیشه
-      actions: [
-        { action: "open", title: "مشاهده" },
-        { action: "close", title: "بستن" },
-      ],
+      requireInteraction: false, // نوتیف تا کلیک نشود بسته نمیشه
+     // actions: [
+     //   { action: "open", title: "مشاهده" },
+     //   { action: "close", title: "بستن" },
+     // ],
     }
 
     event.waitUntil(
