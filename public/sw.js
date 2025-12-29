@@ -161,8 +161,8 @@ self.addEventListener("push", (event) => {
       tag: "installment-reminder",
       requireInteraction: true, // نوتیف تا کلیک نشود بسته نمیشه
      actions: [
-        { action: "open", title: "مشاهده" },
- 
+      { action: "open", title: "مشاهده" },
+       { action: "unsubscribe", title: "غیر فعال سازی" },
      ],
     }
 
