@@ -4,34 +4,37 @@ import { getCurrentUser } from "@/lib/auth-handler"
 import { addToQueue } from "@/lib/background-sync"
 
 const CACHE_KEY = "installments_cache"
-const CACHE_DURATION = 30000 // 30 ثانیه
+const CACHE_DURATION = 5000 // 5 ثانیه
 
 function invalidateCache(): void {
   if (typeof window === "undefined") return
   localStorage.removeItem(CACHE_KEY)
 }
 
-function getCache(userId: string): { data: Installment[], timestamp: number } | null {
+function getCache(userId: string): { data: Installment[]; timestamp: number } | null {
   if (typeof window === "undefined") return null
   const stored = localStorage.getItem(`${CACHE_KEY}-${userId}`)
   if (!stored) return null
-  
+
   const cache = JSON.parse(stored)
   const now = Date.now()
-  
+
   if (now - cache.timestamp > CACHE_DURATION) {
     return null
   }
-  
+
   return cache
 }
 
 function setCache(userId: string, data: Installment[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(`${CACHE_KEY}-${userId}`, JSON.stringify({
-    data,
-    timestamp: Date.now()
-  }))
+  localStorage.setItem(
+    `${CACHE_KEY}-${userId}`,
+    JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }),
+  )
 }
 
 // ============================================
@@ -39,14 +42,14 @@ function setCache(userId: string, data: Installment[]): void {
 // ============================================
 export async function loadInstallments(): Promise<Installment[]> {
   const user = await getCurrentUser()
-  
+
   if (!user) {
     console.log("[Sync] No authenticated user found")
     return []
   }
-  
+
   const userId = user.id
-  
+
   // ✅ 1. چک کردن کش (فوری!)
   const cache = getCache(userId)
   if (cache) {
@@ -55,24 +58,24 @@ export async function loadInstallments(): Promise<Installment[]> {
     refreshDataInBackground(userId)
     return cache.data
   }
-  
+
   // ✅ 2. داده محلی (فوری!)
   const localData = getLocalInstallments(userId)
   console.log("[Sync] 📂 Local data count:", localData.length)
-  
+
   // ✅ 3. اگر آفلاین است، همین الان برگردون
   if (!navigator.onLine) {
     console.log("[Sync] 📴 Offline mode")
     return localData
   }
-  
+
   // ✅ 4. اگر داده محلی داره، اونو برگردون و در پس‌زمینه از سرور بگیر
   if (localData.length > 0) {
     console.log("[Sync] ⚡ Returning local data, refreshing in background...")
     refreshDataInBackground(userId)
     return localData
   }
-  
+
   // ✅ 5. فقط اگر هیچ داده‌ای نداشت، صبر کن تا از سرور بگیره
   console.log("[Sync] 🌐 First load - fetching from server...")
   try {
@@ -96,9 +99,9 @@ async function refreshDataInBackground(userId: string): Promise<void> {
     const merged = mergeInstallments(localData, serverData, userId)
     saveLocalInstallments(userId, merged)
     setCache(userId, merged)
-    
+
     // اطلاع‌رسانی به UI
-    window.dispatchEvent(new CustomEvent('data-refreshed', { detail: merged }))
+    window.dispatchEvent(new CustomEvent("data-refreshed", { detail: merged }))
     console.log("[Sync] ✨ Background refresh complete")
   } catch (error) {
     console.error("[Sync] Background refresh failed:", error)
@@ -113,7 +116,7 @@ export async function saveInstallment(installment: Installment): Promise<void> {
   if (!user) return
 
   const userId = user.id
-  
+
   // ✅ 1. فوری روی localStorage بنویس (بدون تاخیر!)
   const installments = getLocalInstallments(userId)
   const existingIndex = installments.findIndex((i) => i.id === installment.id)
@@ -126,9 +129,9 @@ export async function saveInstallment(installment: Installment): Promise<void> {
 
   saveLocalInstallments(userId, installments)
   invalidateCache()
-  
+
   console.log("[Sync] ⚡ Saved locally (instant!)")
-  
+
   // ✅ 2. اضافه کردن به صف برای sync در پس‌زمینه
   addToQueue({
     type: existingIndex >= 0 ? "update" : "create",
@@ -145,15 +148,15 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
   if (!user) return
 
   const userId = user.id
-  
+
   // ✅ فوری از localStorage حذف کن
   const installments = getLocalInstallments(userId)
   const filtered = installments.filter((i) => i.id !== installmentId)
   saveLocalInstallments(userId, filtered)
   invalidateCache()
-  
+
   console.log("[Sync] ⚡ Deleted locally (instant!)")
-  
+
   // ✅ اضافه به صف
   addToQueue({
     type: "delete",
@@ -170,7 +173,7 @@ export async function togglePayment(installmentId: string, paymentId: string): P
   if (!user) return
 
   const userId = user.id
-  
+
   // ✅ فوری تغییر بده
   const installments = getLocalInstallments(userId)
   const installment = installments.find((i) => i.id === installmentId)
@@ -185,18 +188,18 @@ export async function togglePayment(installmentId: string, paymentId: string): P
 
   saveLocalInstallments(userId, installments)
   invalidateCache()
-  
+
   console.log("[Sync] ⚡ Payment toggled locally (instant!)")
-  
+
   // ✅ اضافه به صف
   addToQueue({
     type: "toggle_payment",
     entityType: "payment",
-    data: { 
-      installmentId, 
-      paymentId, 
-      isPaid: payment.is_paid, 
-      paidDate: payment.paid_date 
+    data: {
+      installmentId,
+      paymentId,
+      isPaid: payment.is_paid,
+      paidDate: payment.paid_date,
     },
   })
 }
@@ -239,17 +242,17 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
 
 function mergeInstallments(local: Installment[], server: Installment[], userId: string): Installment[] {
   const merged = new Map<string, Installment>()
-  
+
   // Server data first (source of truth)
-  server.forEach(item => merged.set(item.id, item))
-  
+  server.forEach((item) => merged.set(item.id, item))
+
   // Local data for items not yet synced
-  local.forEach(item => {
+  local.forEach((item) => {
     if (!merged.has(item.id)) {
       merged.set(item.id, item)
     }
   })
-  
+
   return Array.from(merged.values())
 }
 

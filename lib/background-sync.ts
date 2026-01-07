@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/client"
-import type { Installment } from "@/lib/types"
 
 const SYNC_QUEUE_KEY = "sync_queue"
 const SYNC_INTERVAL = 1000 // 1 ثانیه
@@ -21,16 +20,18 @@ let isSyncing = false
 // 🚀 شروع Background Sync
 // ============================================
 export function startBackgroundSync(): void {
+  if (typeof window === "undefined") return
+
   if (syncInterval) {
     console.log("[BG Sync] Already running")
     return
   }
 
   console.log("[BG Sync] Starting background sync...")
-  
+
   // اولین sync فوری
   syncNow()
-  
+
   // سپس هر 1 ثانیه چک کن
   syncInterval = setInterval(() => {
     syncNow()
@@ -52,6 +53,8 @@ export function stopBackgroundSync(): void {
 // 🔄 اجرای Sync
 // ============================================
 async function syncNow(): Promise<void> {
+  if (typeof window === "undefined") return
+
   // اگر آفلاین است یا در حال sync است، skip کن
   if (!navigator.onLine || isSyncing) {
     return
@@ -74,10 +77,10 @@ async function syncNow(): Promise<void> {
       console.log(`[BG Sync] ✅ Success: ${operation.type}`)
     } catch (error: any) {
       console.error(`[BG Sync] ❌ Failed: ${operation.type}`, error.message)
-      
+
       // افزایش retry counter
       operation.retries = (operation.retries || 0) + 1
-      
+
       // اگر هنوز retry مونده، دوباره به صف اضافه کن
       if (operation.retries < MAX_RETRIES) {
         remainingOps.push(operation)
@@ -90,11 +93,12 @@ async function syncNow(): Promise<void> {
   // آپدیت صف
   saveQueue(remainingOps)
   isSyncing = false
-  
-  if (remainingOps.length === 0) {
+
+  if (remainingOps.length === 0 && queue.length > 0) {
     console.log("[BG Sync] ✨ All operations synced!")
-    // اطلاع‌رسانی به UI
-    window.dispatchEvent(new CustomEvent('sync-complete'))
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("sync-complete"))
+    }
   }
 }
 
@@ -105,13 +109,35 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
   switch (operation.type) {
     case "create":
     case "update":
-      await supabase.from("installments").upsert({
-        ...operation.data,
+      const { error: instError } = await supabase.from("installments").upsert({
+        id: operation.data.id,
         user_id: operation.data.user_id,
+        creditor_name: operation.data.creditor_name,
+        item_description: operation.data.item_description,
+        total_amount: operation.data.total_amount,
+        installment_amount: operation.data.installment_amount,
+        start_date: operation.data.start_date,
+        installment_count: operation.data.installment_count,
+        recurrence: operation.data.recurrence,
+        reminder_days: operation.data.reminder_days,
+        notes: operation.data.notes,
+        payment_time: operation.data.payment_time,
+        created_at: operation.data.created_at,
+        updated_at: new Date().toISOString(),
       })
-      
-      // Sync payments
+
+      if (instError) throw instError
+
       if (operation.data.payments?.length > 0) {
+        // حذف payments قدیمی که در لیست جدید نیستند
+        const paymentIds = operation.data.payments.map((p: any) => p.id)
+        await supabase
+          .from("installment_payments")
+          .delete()
+          .eq("installment_id", operation.data.id)
+          .not("id", "in", `(${paymentIds.join(",")})`)
+
+        // Upsert payments جدید
         const paymentsToUpsert = operation.data.payments.map((p: any) => ({
           id: p.id,
           installment_id: operation.data.id,
@@ -122,21 +148,24 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
           updated_at: new Date().toISOString(),
         }))
 
-        await supabase
+        const { error: payError } = await supabase
           .from("installment_payments")
           .upsert(paymentsToUpsert, { onConflict: "id" })
+
+        if (payError) throw payError
       }
       break
 
     case "delete":
-      await supabase
-        .from("installments")
-        .delete()
-        .eq("id", operation.data.id)
+      await supabase.from("installment_payments").delete().eq("installment_id", operation.data.id)
+
+      const { error: delError } = await supabase.from("installments").delete().eq("id", operation.data.id)
+
+      if (delError) throw delError
       break
 
     case "toggle_payment":
-      await supabase
+      const { error: toggleError } = await supabase
         .from("installment_payments")
         .update({
           is_paid: operation.data.isPaid,
@@ -144,7 +173,9 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
           updated_at: new Date().toISOString(),
         })
         .eq("id", operation.data.paymentId)
-      
+
+      if (toggleError) throw toggleError
+
       await supabase
         .from("installments")
         .update({ updated_at: new Date().toISOString() })
@@ -158,19 +189,19 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
 // ============================================
 export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "retries">): void {
   const queue = getQueue()
-  
+
   const newOp: SyncOperation = {
     ...operation,
     id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     timestamp: new Date().toISOString(),
     retries: 0,
   }
-  
+
   queue.push(newOp)
   saveQueue(queue)
-  
+
   console.log(`[BG Sync] Added to queue: ${newOp.type} (Queue size: ${queue.length})`)
-  
+
   // اگر آنلاین است، فوری sync کن
   if (navigator.onLine && !isSyncing) {
     syncNow()
@@ -205,7 +236,7 @@ if (typeof window !== "undefined") {
     console.log("[BG Sync] Network online - starting sync")
     syncNow()
   })
-  
+
   // توقف sync وقتی آفلاین میشه
   window.addEventListener("offline", () => {
     console.log("[BG Sync] Network offline")

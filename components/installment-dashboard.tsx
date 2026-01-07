@@ -1,22 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Calendar, Banknote, CircleDollarSign, TrendingDown, Clock, AlertCircle, CalendarDays, List } from "lucide-react"
+import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
-import {
-  gregorianToJalali,
-  persianMonths,
-  toPersianDigits,
-  formatCurrencyPersian,
-} from "@/lib/persian-calendar"
+import { gregorianToJalali, persianMonths, toPersianDigits, formatCurrencyPersian } from "@/lib/persian-calendar"
 import { loadInstallments, togglePayment } from "@/lib/data-sync"
+import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
 
 interface InstallmentDashboardProps {
   userId: string
@@ -31,21 +27,47 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   const [activeView, setActiveView] = useState("list")
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadData()
-  }, [userId])
-
-  async function loadData() {
-    setLoading(true)
+  const loadData = useCallback(async () => {
     try {
       const data = await loadInstallments()
       setInstallments(data)
     } catch (error) {
       console.error("[v0] Error loading installments:", error)
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
+    loadData().finally(() => setLoading(false))
+
+    startBackgroundSync()
+
+    const handleDataRefreshed = (event: CustomEvent<Installment[]>) => {
+      console.log("[v0] Data refreshed from server")
+      setInstallments(event.detail)
+    }
+
+    const handleSyncComplete = () => {
+      console.log("[v0] Sync complete - reloading data")
+      loadData()
+    }
+
+    window.addEventListener("data-refreshed", handleDataRefreshed as EventListener)
+    window.addEventListener("sync-complete", handleSyncComplete)
+
+    const refreshInterval = setInterval(() => {
+      if (navigator.onLine) {
+        loadData()
+      }
+    }, 10000)
+
+    return () => {
+      stopBackgroundSync()
+      window.removeEventListener("data-refreshed", handleDataRefreshed as EventListener)
+      window.removeEventListener("sync-complete", handleSyncComplete)
+      clearInterval(refreshInterval)
+    }
+  }, [userId, loadData])
 
   function handleAddInstallment(startDate?: string) {
     setSelectedInstallment(null)
@@ -77,7 +99,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
-    function getPersianDate(gregorianDate: string): string {
+  function getPersianDate(gregorianDate: string): string {
     const [year, month, day] = gregorianDate.split("-").map(Number)
     const [jy, jm, jd] = gregorianToJalali(year, month, day)
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
@@ -86,12 +108,13 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   // 📅 تاریخ امروز (میلادی و شمسی)
   const todayGregorian = new Date()
   todayGregorian.setHours(0, 0, 0, 0)
-  
+
   const [todayJalaliYear, todayJalaliMonth, todayJalaliDay] = gregorianToJalali(
     todayGregorian.getFullYear(),
     todayGregorian.getMonth() + 1,
-    todayGregorian.getDate()
+    todayGregorian.getDate(),
   )
+
   function getRecurrenceLabel(recurrence: string): string {
     const labels = {
       daily: "روزانه",
@@ -103,26 +126,24 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return labels[recurrence as keyof typeof labels] || recurrence
   }
 
-// ✅ محاسبه کل بدهی (همه unpaidها)
-const totalDebt = installments.reduce((sum, inst) => {
-  if (!inst.payments || !Array.isArray(inst.payments)) {
-    return sum;
-  }
-  
-  const unpaidAmount = inst.payments
-    .filter((p) => !p.is_paid) 
-    .reduce((s, p) => s + (p.amount || 0), 0);
-  return sum + unpaidAmount;
-}, 0);
+  // ✅ محاسبه کل بدهی (همه unpaidها)
+  const totalDebt = installments.reduce((sum, inst) => {
+    if (!inst.payments || !Array.isArray(inst.payments)) {
+      return sum
+    }
+
+    const unpaidAmount = inst.payments.filter((p) => !p.is_paid).reduce((s, p) => s + (p.amount || 0), 0)
+    return sum + unpaidAmount
+  }, 0)
 
   // ✅ محاسبه بدهی ماه جاری (شمسی)
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
-    
+
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-        
+
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
@@ -130,7 +151,7 @@ const totalDebt = installments.reduce((sum, inst) => {
         const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
-          dueDate.getDate()
+          dueDate.getDate(),
         )
 
         // ماه جاری شمسی و از امروز به بعد
@@ -140,7 +161,7 @@ const totalDebt = installments.reduce((sum, inst) => {
         return isCurrentMonth && isFromToday
       })
       .reduce((s, p) => s + (p.amount || 0), 0)
-    
+
     return sum + unpaidAmount
   }, 0)
 
@@ -162,7 +183,7 @@ const totalDebt = installments.reduce((sum, inst) => {
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-        
+
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
@@ -171,9 +192,9 @@ const totalDebt = installments.reduce((sum, inst) => {
         const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
-          dueDate.getDate()
+          dueDate.getDate(),
         )
-        
+
         return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .map((p) => ({ ...inst, payment: p }))
@@ -235,14 +256,13 @@ const totalDebt = installments.reduce((sum, inst) => {
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
                 {formatCurrency(totalDebt)} تومان
               </p>
-              
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
-            <CircleDollarSign className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+              <CircleDollarSign className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -356,7 +376,7 @@ const totalDebt = installments.reduce((sum, inst) => {
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap justify-end">
                             <Badge variant="outline" className="font-medium text-xs md:text-sm shrink-0">
-                               {getRecurrenceLabel(installment.recurrence)}
+                              {getRecurrenceLabel(installment.recurrence)}
                             </Badge>
                             <h3 className="text-lg md:text-xl font-bold break-words">{installment.creditor_name}</h3>
                           </div>
@@ -366,7 +386,6 @@ const totalDebt = installments.reduce((sum, inst) => {
                           {installment.payment_time && (
                             <p className="text-sm text-muted-foreground mt-1">
                               ساعت پرداخت: {toPersianDigits(installment.payment_time.slice(0, 5))}
-                         
                             </p>
                           )}
                         </div>
@@ -390,19 +409,21 @@ const totalDebt = installments.reduce((sum, inst) => {
                               <p className="text-xs md:text-sm font-medium text-muted-foreground mb-2">قسط بعدی</p>
                               <div className="flex flex-col gap-2 text-xs md:text-sm dir:rtl">
                                 <div className="flex items-center gap-2 justify-end">
-                                    <span className="text-xs md:text-sm font-medium text-muted-foreground break-words">
+                                  <span className="text-xs md:text-sm font-medium text-muted-foreground break-words">
                                     تومان
-                                  </span> 
+                                  </span>
                                   <span className="font-bold text-primary text-right text-base md:text-lg break-words">
                                     {formatCurrency(nextPayment.amount)}
-                                  </span> 
+                                  </span>
                                   <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
                                 <div className="flex items-center  gap-2 flex-wrap justify-end">
                                   <span dir="rtl" className="text-muted-foreground whitespace-nowrap">
-                                  ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده) 
+                                    ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده)
                                   </span>
-                                  <span dir="rtl" className="break-words">{getPersianDate(nextPayment.due_date)}</span>
+                                  <span dir="rtl" className="break-words">
+                                    {getPersianDate(nextPayment.due_date)}
+                                  </span>
                                   <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
                               </div>
