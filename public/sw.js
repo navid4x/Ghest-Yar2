@@ -1,29 +1,23 @@
-const CACHE_VERSION = "v4"
+const CACHE_VERSION = "v5"
 const STATIC_CACHE = `ghestyar-static-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `ghestyar-dynamic-${CACHE_VERSION}`
 
 // فایل‌های استاتیک
-const STATIC_ASSETS = [
-  "/",
-  "/auth",
-  "/manifest.json",
-  "/icon-192.jpg",
-  "/icon-512.jpg",
-]
+const STATIC_ASSETS = ["/", "/auth", "/manifest.json", "/icon-192.jpg", "/icon-512.jpg"]
 
 // ========================================
 // 📥 نصب Service Worker
 // ========================================
 self.addEventListener("install", (event) => {
   console.log("[SW] Installing version", CACHE_VERSION)
-  
+
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log("[SW] Caching static assets")
       return cache.addAll(STATIC_ASSETS)
-    })
+    }),
   )
-  
+
   self.skipWaiting()
 })
 
@@ -32,24 +26,55 @@ self.addEventListener("install", (event) => {
 // ========================================
 self.addEventListener("activate", (event) => {
   console.log("[SW] Activating version", CACHE_VERSION)
-  
+
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (
-            cacheName !== STATIC_CACHE && 
-            cacheName !== DYNAMIC_CACHE
-          ) {
-            console.log("[SW] Deleting old cache:", cacheName)
-            return caches.delete(cacheName)
-          }
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+              console.log("[SW] Deleting old cache:", cacheName)
+              return caches.delete(cacheName)
+            }
+          }),
+        )
+      })
+      .then(() => {
+        return self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: "SW_UPDATED",
+              version: CACHE_VERSION,
+            })
+          })
         })
-      )
-    })
+      }),
   )
-  
+
   return self.clients.claim()
+})
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    console.log("[SW] Skip waiting requested")
+    self.skipWaiting()
+  }
+
+  if (event.data && event.data.type === "GET_VERSION") {
+    event.ports[0].postMessage({ version: CACHE_VERSION })
+  }
+
+  if (event.data && event.data.type === "CLEAR_ALL_CACHES") {
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)))
+      })
+      .then(() => {
+        event.ports[0].postMessage({ cleared: true })
+      })
+  }
 })
 
 // ========================================
@@ -74,11 +99,11 @@ self.addEventListener("fetch", (event) => {
     if (request.method !== "GET") {
       event.respondWith(
         fetch(request).catch(() => {
-          return new Response(
-            JSON.stringify({ error: "Offline - Write operation failed" }),
-            { status: 503, headers: { "Content-Type": "application/json" } }
-          )
-        })
+          return new Response(JSON.stringify({ error: "Offline - Write operation failed" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          })
+        }),
       )
       return
     }
@@ -100,12 +125,12 @@ self.addEventListener("fetch", (event) => {
             if (cached) {
               return cached
             }
-            return new Response(
-              JSON.stringify({ error: "Offline - No cached data" }),
-              { status: 503, headers: { "Content-Type": "application/json" } }
-            )
+            return new Response(JSON.stringify({ error: "Offline - No cached data" }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            })
           })
-        })
+        }),
     )
     return
   }
@@ -133,7 +158,7 @@ self.addEventListener("fetch", (event) => {
           }
           return new Response("Network error", { status: 408 })
         })
-    })
+    }),
   )
 })
 
@@ -160,17 +185,10 @@ self.addEventListener("push", (event) => {
       vibrate: [200, 100, 200],
       tag: "installment-reminder",
       requireInteraction: true, // نوتیف تا کلیک نشود بسته نمیشه
-     actions: [
-      { action: "open", title: "مشاهده" },
-     ],
+      actions: [{ action: "open", title: "مشاهده" }],
     }
 
-    event.waitUntil(
-      self.registration.showNotification(
-        data.title || "یادآوری قسط", 
-        options
-      )
-    )
+    event.waitUntil(self.registration.showNotification(data.title || "یادآوری قسط", options))
   } catch (error) {
     console.error("[SW] Error processing push:", error)
   }
@@ -181,7 +199,7 @@ self.addEventListener("push", (event) => {
 // ========================================
 self.addEventListener("notificationclick", (event) => {
   console.log("[SW] Notification clicked:", event.action)
-  
+
   event.notification.close()
 
   if (event.action === "close") {
@@ -189,23 +207,21 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   event.waitUntil(
-    clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
-        const url = event.notification.data?.url || "/"
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const url = event.notification.data?.url || "/"
 
-        // اگر تب باز بود، فوکوس کن
-        for (const client of clientList) {
-          if (client.url === url && "focus" in client) {
-            return client.focus()
-          }
+      // اگر تب باز بود، فوکوس کن
+      for (const client of clientList) {
+        if (client.url === url && "focus" in client) {
+          return client.focus()
         }
+      }
 
-        // اگر تب باز نبود، تب جدید باز کن
-        if (clients.openWindow) {
-          return clients.openWindow(url)
-        }
-      })
+      // اگر تب باز نبود، تب جدید باز کن
+      if (clients.openWindow) {
+        return clients.openWindow(url)
+      }
+    }),
   )
 })
 
@@ -214,7 +230,7 @@ self.addEventListener("notificationclick", (event) => {
 // ========================================
 self.addEventListener("sync", (event) => {
   console.log("[SW] Background sync:", event.tag)
-  
+
   if (event.tag === "sync-installments") {
     event.waitUntil(syncInstallments())
   }

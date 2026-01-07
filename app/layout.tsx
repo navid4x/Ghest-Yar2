@@ -4,6 +4,7 @@ import { Vazirmatn } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/toaster"
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
+import { UpdatePrompt } from "@/components/update-prompt"
 import "./globals.css"
 
 const vazirmatn = Vazirmatn({
@@ -52,6 +53,7 @@ export default function RootLayout({
         <ServiceWorkerRegistration />
         {children}
         <Toaster />
+        <UpdatePrompt />
         <Analytics />
       </body>
     </html>
