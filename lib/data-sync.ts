@@ -205,6 +205,75 @@ export async function togglePayment(installmentId: string, paymentId: string): P
 }
 
 // ============================================
+// ↩️ UNDO LAST PAYMENT - بازگردانی آخرین پرداخت
+// ============================================
+export async function undoLastPayment(installmentId: string): Promise<{ success: boolean; payment?: any }> {
+  const user = await getCurrentUser()
+  if (!user) return { success: false }
+
+  const userId = user.id
+
+  // پیدا کردن قسط
+  const installments = getLocalInstallments(userId)
+  const installment = installments.find((i) => i.id === installmentId)
+  if (!installment) return { success: false }
+
+  // پیدا کردن آخرین پرداخت شده (مرتب‌سازی بر اساس تاریخ سررسید - جدیدترین اول)
+  const paidPayments = installment.payments
+    .filter((p) => p.is_paid)
+    .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+
+  if (paidPayments.length === 0) {
+    return { success: false }
+  }
+
+  const lastPaidPayment = paidPayments[0]
+
+  // تغییر وضعیت به پرداخت نشده
+  const payment = installment.payments.find((p) => p.id === lastPaidPayment.id)
+  if (!payment) return { success: false }
+
+  payment.is_paid = false
+  payment.paid_date = undefined
+  installment.updated_at = new Date().toISOString()
+
+  // ذخیره محلی
+  saveLocalInstallments(userId, installments)
+  invalidateCache()
+
+  console.log("[Sync] ⚡ Undo payment locally (instant!)")
+
+  // اضافه به صف برای sync
+  addToQueue({
+    type: "toggle_payment",
+    entityType: "payment",
+    data: {
+      installmentId,
+      paymentId: lastPaidPayment.id,
+      isPaid: false,
+      paidDate: null,
+    },
+  })
+
+  return { success: true, payment: lastPaidPayment }
+}
+
+// ============================================
+// 📊 GET LAST PAID PAYMENT - گرفتن آخرین پرداخت شده
+// ============================================
+export function getLastPaidPayment(installment: Installment): any | null {
+  if (!installment.payments || !Array.isArray(installment.payments)) {
+    return null
+  }
+
+  const paidPayments = installment.payments
+    .filter((p) => p.is_paid)
+    .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+
+  return paidPayments.length > 0 ? paidPayments[0] : null
+}
+
+// ============================================
 // 🌐 SERVER OPERATIONS
 // ============================================
 async function fetchFromServer(userId: string): Promise<Installment[]> {

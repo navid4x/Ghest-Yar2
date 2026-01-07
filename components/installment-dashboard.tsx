@@ -1,18 +1,21 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List } from "lucide-react"
+import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2 } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
 import { gregorianToJalali, persianMonths, toPersianDigits, formatCurrencyPersian } from "@/lib/persian-calendar"
-import { loadInstallments, togglePayment } from "@/lib/data-sync"
+import { loadInstallments, togglePayment, undoLastPayment, getLastPaidPayment } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
+import { ConfirmUndoDialog } from "./confirm-undo-dialog"
 
 interface InstallmentDashboardProps {
   userId: string
@@ -26,6 +29,8 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   const [initialDate, setInitialDate] = useState<string | undefined>(undefined)
   const [activeView, setActiveView] = useState("list")
   const [loading, setLoading] = useState(true)
+  const [undoDialogOpen, setUndoDialogOpen] = useState(false)
+  const [undoInstallment, setUndoInstallment] = useState<Installment | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -105,7 +110,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
   }
 
-  // 📅 تاریخ امروز (میلادی و شمسی)
   const todayGregorian = new Date()
   todayGregorian.setHours(0, 0, 0, 0)
 
@@ -126,7 +130,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return labels[recurrence as keyof typeof labels] || recurrence
   }
 
-  // ✅ محاسبه کل بدهی (همه unpaidها)
   const totalDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) {
       return sum
@@ -136,7 +139,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return sum + unpaidAmount
   }, 0)
 
-  // ✅ محاسبه بدهی ماه جاری (شمسی)
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
 
@@ -147,14 +149,12 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
-        // تبدیل به شمسی
         const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
         )
 
-        // ماه جاری شمسی و از امروز به بعد
         const isCurrentMonth = dueJY === todayJalaliYear && dueJM === todayJalaliMonth
         const isFromToday = dueJD >= todayJalaliDay
 
@@ -165,7 +165,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return sum + unpaidAmount
   }, 0)
 
-  // ✅ اقساط سررسید این هفته
   const upcomingThisWeek = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -177,7 +176,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       .map((p) => ({ ...inst, payment: p }))
   })
 
-  // ✅ اقساط ماه جاری
   const currentMonthInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -200,7 +198,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       .map((p) => ({ ...inst, payment: p }))
   })
 
-  // ✅ اقساط معوقه
   const overdueInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -227,6 +224,31 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }
 
   const selectedCardData = getSelectedCardData()
+
+  function handleUndoClick(e: React.MouseEvent, installment: Installment) {
+    e.stopPropagation()
+    setUndoInstallment(installment)
+    setUndoDialogOpen(true)
+  }
+
+  async function handleConfirmUndo() {
+    if (!undoInstallment) return
+
+    await undoLastPayment(undoInstallment.id)
+    await loadData()
+    setUndoDialogOpen(false)
+    setUndoInstallment(null)
+  }
+
+  function getUndoPaymentInfo(installment: Installment) {
+    const lastPaid = getLastPaidPayment(installment)
+    if (!lastPaid) return null
+
+    return {
+      date: getPersianDate(lastPaid.due_date),
+      amount: formatCurrency(lastPaid.amount),
+    }
+  }
 
   if (loading) {
     return (
@@ -364,6 +386,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                 const paidCount = installment.payments.filter((p) => p.is_paid).length
                 const progress = (paidCount / installment.installment_count) * 100
                 const nextPayment = installment.payments.find((p) => !p.is_paid)
+                const hasUndoablePayment = paidCount > 0
 
                 return (
                   <Card
@@ -375,6 +398,17 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                       <div className="flex items-start justify-between gap-2 dir:rtl">
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap justify-end">
+                            {hasUndoablePayment && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                                onClick={(e) => handleUndoClick(e, installment)}
+                                title="بازگردانی آخرین پرداخت"
+                              >
+                                <Undo2 className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Badge variant="outline" className="font-medium text-xs md:text-sm shrink-0">
                               {getRecurrenceLabel(installment.recurrence)}
                             </Badge>
@@ -417,7 +451,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                                   </span>
                                   <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
-                                <div className="flex items-center  gap-2 flex-wrap justify-end">
+                                <div className="flex items-center gap-2 flex-wrap justify-end">
                                   <span dir="rtl" className="text-muted-foreground whitespace-nowrap">
                                     ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده)
                                   </span>
@@ -469,6 +503,14 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           setSelectedInstallment(null)
           setInitialDate(undefined)
         }}
+      />
+
+      <ConfirmUndoDialog
+        open={undoDialogOpen}
+        onOpenChange={setUndoDialogOpen}
+        onConfirm={handleConfirmUndo}
+        paymentDate={undoInstallment ? getUndoPaymentInfo(undoInstallment)?.date : undefined}
+        amount={undoInstallment ? getUndoPaymentInfo(undoInstallment)?.amount : undefined}
       />
     </div>
   )
