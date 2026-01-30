@@ -120,7 +120,7 @@ export default function AuthPage() {
               <Wallet className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold">مدیریت اقساط</CardTitle>
+          <CardTitle className="text-3xl font-bold">قسطا</CardTitle>
           <CardDescription className="text-base">
             برای ورود یا ثبت‌نام، ایمیل و رمز عبور خود را وارد کنید
             {!isOnline && (
