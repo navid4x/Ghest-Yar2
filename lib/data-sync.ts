@@ -276,3 +276,75 @@ export function getPendingOperationsCount(): number {
   const { getQueueSize } = require("@/lib/background-sync")
   return getQueueSize()
 }
+
+// ============================================
+// 🔙 UNDO LAST PAYMENT
+// ============================================
+export function getLastPaidPayment(installment: Installment): { id: string; due_date: string; amount: number } | null {
+  if (!installment.payments || !Array.isArray(installment.payments)) {
+    return null
+  }
+  
+  const paidPayments = installment.payments
+    .filter((p) => p.is_paid)
+    .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+  
+  if (paidPayments.length === 0) {
+    return null
+  }
+  
+  return paidPayments[0]
+}
+
+export async function undoLastPayment(installmentId: string): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) {
+    console.error("[Sync] Cannot undo: No user")
+    return
+  }
+
+  const userId = user.id
+  
+  // 1. پیدا کردن قسط
+  const installments = getLocalInstallments(userId)
+  const installment = installments.find((i) => i.id === installmentId)
+  if (!installment) {
+    console.error("[Sync] Installment not found:", installmentId)
+    return
+  }
+
+  // 2. پیدا کردن آخرین پرداخت شده
+  const lastPaid = getLastPaidPayment(installment)
+  if (!lastPaid) {
+    console.error("[Sync] No paid payment found to undo")
+    return
+  }
+
+  // 3. تغییر وضعیت به پرداخت نشده
+  const payment = installment.payments.find((p) => p.id === lastPaid.id)
+  if (!payment) {
+    console.error("[Sync] Payment not found:", lastPaid.id)
+    return
+  }
+
+  payment.is_paid = false
+  payment.paid_date = undefined
+  installment.updated_at = new Date().toISOString()
+
+  saveLocalInstallments(userId, installments)
+  invalidateCache(userId)
+  
+  console.log(`[Sync] ⚡ Payment undone locally: ${lastPaid.due_date}`)
+  
+  // 4. اضافه به صف
+  addToQueue({
+    type: "toggle_payment",
+    entityType: "payment",
+    data: { 
+      installmentId, 
+      paymentId: lastPaid.id, 
+      isPaid: false, 
+      paidDate: undefined 
+    },
+  })
+}
