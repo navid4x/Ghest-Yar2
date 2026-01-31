@@ -4,24 +4,28 @@ export interface Installment {
   creditor_name: string
   item_description: string
   total_amount: number
-  start_date: string // تاریخ شروع (gregorian)
-  installment_count: number // تعداد اقساط
-  recurrence: "daily" | "weekly" | "monthly" | "yearly" // دوره تکرار
-  payment_time?: string // ساعت و دقیقه پرداخت (HH:MM)
+  start_date: string // تاریخ میلادی (برای compatibility)
+  jalali_start_date: string // تاریخ شمسی (YYYY/MM/DD)
+  installment_count: number
+  recurrence: "daily" | "weekly" | "monthly" | "yearly" | "never"
+  payment_time?: string
   installment_amount: number
   payments: InstallmentPayment[]
   reminder_days: number
   notes?: string
   created_at: string
   updated_at: string
+  deleted_at?: string // برای Soft Delete
 }
 
 export interface InstallmentPayment {
   id: string
-  due_date: string // تاریخ سررسید این قسط
+  due_date: string // تاریخ میلادی (برای compatibility)
+  jalali_due_date: string // تاریخ شمسی (YYYY/MM/DD)
   amount: number
   is_paid: boolean
   paid_date?: string
+  deleted_at?: string // برای Soft Delete
 }
 
 export interface PaymentHistory {
@@ -31,3 +35,11 @@ export interface PaymentHistory {
   paid_date: string
   created_at: string
 }
+
+export type SyncOperationType = 
+  | "create" 
+  | "update" 
+  | "soft_delete" 
+  | "hard_delete" 
+  | "toggle_payment" 
+  | "restore"
