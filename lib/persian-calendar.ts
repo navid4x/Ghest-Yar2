@@ -39,7 +39,121 @@ function div(a: number, b: number): number {
 function mod(a: number, b: number): number {
   return a - div(a, b) * b
 }
+// ... کدهای موجود بدون تغییر ...
 
+// ========================================
+// 🆕 Helper Functions برای محاسبات تاریخ شمسی
+// ========================================
+
+/**
+ * اضافه کردن ماه به تاریخ شمسی با حفظ روز
+ * مثال: addJalaliMonths("1403/01/31", 1) → "1403/02/31"
+ */
+export function addJalaliMonths(jalaliDateStr: string, months: number): string {
+  const [year, month, day] = jalaliDateStr.split("/").map(Number)
+  
+  let newYear = year
+  let newMonth = month + months
+  
+  // Handle year overflow
+  while (newMonth > 12) {
+    newMonth -= 12
+    newYear += 1
+  }
+  
+  while (newMonth < 1) {
+    newMonth += 12
+    newYear -= 1
+  }
+  
+  // Handle day overflow (مثلاً 31 بهمن نداریم)
+  const maxDays = getPersianMonthDays(newYear, newMonth)
+  const newDay = Math.min(day, maxDays)
+  
+  return formatPersianDate(newYear, newMonth, newDay)
+}
+
+/**
+ * اضافه کردن روز به تاریخ شمسی
+ * مثال: addJalaliDays("1403/01/10", 7) → "1403/01/17"
+ */
+export function addJalaliDays(jalaliDateStr: string, days: number): string {
+  const [year, month, day] = jalaliDateStr.split("/").map(Number)
+  
+  // Convert to Gregorian
+  const [gy, gm, gd] = jalaliToGregorian(year, month, day)
+  const date = new Date(gy, gm - 1, gd)
+  
+  // Add days
+  date.setDate(date.getDate() + days)
+  
+  // Convert back to Jalali
+  const [newYear, newMonth, newDay] = gregorianToJalali(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate()
+  )
+  
+  return formatPersianDate(newYear, newMonth, newDay)
+}
+
+/**
+ * اضافه کردن سال به تاریخ شمسی
+ * مثال: addJalaliYears("1403/12/30", 1) → "1404/12/29" (اگر سال غیر کبیسه باشه)
+ */
+export function addJalaliYears(jalaliDateStr: string, years: number): string {
+  const [year, month, day] = jalaliDateStr.split("/").map(Number)
+  const newYear = year + years
+  
+  // Handle day overflow (مثلاً 30 اسفند در سال غیر کبیسه نداریم)
+  const maxDays = getPersianMonthDays(newYear, month)
+  const newDay = Math.min(day, maxDays)
+  
+  return formatPersianDate(newYear, month, newDay)
+}
+
+/**
+ * تبدیل تاریخ شمسی به میلادی (string to string)
+ * مثال: jalaliStringToGregorianString("1403/01/10") → "2024-03-30"
+ */
+export function jalaliStringToGregorianString(jalaliDateStr: string): string {
+  const [year, month, day] = jalaliDateStr.split("/").map(Number)
+  const [gy, gm, gd] = jalaliToGregorian(year, month, day)
+  return `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
+}
+
+/**
+ * تبدیل تاریخ میلادی به شمسی (string to string)
+ * مثال: gregorianStringToJalaliString("2024-03-30") → "1403/01/10"
+ */
+export function gregorianStringToJalaliString(gregorianDateStr: string): string {
+  const [year, month, day] = gregorianDateStr.split("-").map(Number)
+  const [jy, jm, jd] = gregorianToJalali(year, month, day)
+  return formatPersianDate(jy, jm, jd)
+}
+
+/**
+ * مقایسه دو تاریخ شمسی
+ * @returns negative if date1 < date2, positive if date1 > date2, 0 if equal
+ */
+export function compareJalaliDates(date1: string, date2: string): number {
+  const g1 = jalaliStringToGregorianString(date1)
+  const g2 = jalaliStringToGregorianString(date2)
+  
+  const t1 = new Date(g1).getTime()
+  const t2 = new Date(g2).getTime()
+  
+  return t1 - t2
+}
+
+/**
+ * دریافت تاریخ امروز به فرمت string
+ * مثال: "1403/11/12"
+ */
+export function getTodayJalaliString(): string {
+  const [year, month, day] = getTodayPersian()
+  return formatPersianDate(year, month, day)
+}
 // Convert Gregorian to Persian (Jalali) - الگوریتم دقیق از jalaali-js (کتابخانه استاندارد)
 export function gregorianToJalali(gy: number, gm: number, gd: number): [number, number, number] {
   let jy: number
