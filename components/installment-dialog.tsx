@@ -12,11 +12,14 @@ import type { Installment, InstallmentPayment } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { Trash2, SaveIcon, Calculator } from "lucide-react"
 import {
-  gregorianToJalali,
-  jalaliToGregorian,
+  formatPersianDate,
   toPersianDigits,
   formatCurrencyPersian,
   parseCurrencyInput,
+  addJalaliMonths,
+  addJalaliDays,
+  addJalaliYears,
+  jalaliStringToGregorianString,
 } from "@/lib/persian-calendar"
 import { PersianDatePicker } from "@/components/persian-date-picker"
 import { saveInstallment, deleteInstallment } from "@/lib/data-sync"
@@ -79,9 +82,16 @@ export function InstallmentDialog({
       setTotalAmount(installment.total_amount.toString())
       setTotalAmountDisplay(formatCurrencyPersian(installment.total_amount))
 
-      const [year, month, day] = installment.start_date.split("-").map(Number)
-      const [jy, jm, jd] = gregorianToJalali(year, month, day)
-      setStartDatePersian({ year: jy, month: jm, day: jd })
+      // 🆕 اگر jalali_start_date داره، از اون استفاده کن
+      if (installment.jalali_start_date) {
+        const [year, month, day] = installment.jalali_start_date.split("/").map(Number)
+        setStartDatePersian({ year, month, day })
+      } else {
+        // fallback به تبدیل از gregorian
+        const [year, month, day] = installment.start_date.split("-").map(Number)
+        const [jy, jm, jd] = gregorianToJalali(year, month, day)
+        setStartDatePersian({ year: jy, month: jm, day: jd })
+      }
 
       setInstallmentCount(installment.installment_count.toString())
       setRecurrence(installment.recurrence)
@@ -112,19 +122,20 @@ export function InstallmentDialog({
     }
   }, [installment, initialDate])
 
+  // 🆕 تابع generatePayments با حفظ روز شمسی
   function generatePayments(
-    start: string,
+    jalaliStartDate: string,
     count: number,
     recurr: "daily" | "weekly" | "monthly" | "yearly" | "never",
     amount: number,
   ): InstallmentPayment[] {
     const payments: InstallmentPayment[] = []
-    const currentDate = new Date(start)
-
+    
     if (recurr === "never") {
       payments.push({
         id: crypto.randomUUID(),
-        due_date: currentDate.toISOString().split("T")[0],
+        jalali_due_date: jalaliStartDate,
+        due_date: jalaliStringToGregorianString(jalaliStartDate),
         amount: amount,
         is_paid: false,
         paid_date: null,
@@ -132,26 +143,29 @@ export function InstallmentDialog({
       return payments
     }
 
+    let currentJalaliDate = jalaliStartDate
+
     for (let i = 0; i < count; i++) {
       payments.push({
         id: crypto.randomUUID(),
-        due_date: currentDate.toISOString().split("T")[0],
+        jalali_due_date: currentJalaliDate,
+        due_date: jalaliStringToGregorianString(currentJalaliDate),
         amount: amount,
         is_paid: false,
       })
 
       switch (recurr) {
         case "daily":
-          currentDate.setDate(currentDate.getDate() + 1)
+          currentJalaliDate = addJalaliDays(currentJalaliDate, 1)
           break
         case "weekly":
-          currentDate.setDate(currentDate.getDate() + 7)
+          currentJalaliDate = addJalaliDays(currentJalaliDate, 7)
           break
         case "monthly":
-          currentDate.setMonth(currentDate.getMonth() + 1)
+          currentJalaliDate = addJalaliMonths(currentJalaliDate, 1)
           break
         case "yearly":
-          currentDate.setFullYear(currentDate.getFullYear() + 1)
+          currentJalaliDate = addJalaliYears(currentJalaliDate, 1)
           break
       }
     }
@@ -159,9 +173,10 @@ export function InstallmentDialog({
     return payments
   }
 
+  // 🆕 تابع updateExistingPayments با حفظ روز شمسی
   function updateExistingPayments(
     existingPayments: InstallmentPayment[],
-    newStartDate: string,
+    newJalaliStartDate: string,
     newCount: number,
     newRecurrence: "daily" | "weekly" | "monthly" | "yearly" | "never",
     newAmount: number,
@@ -170,39 +185,43 @@ export function InstallmentDialog({
       (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
     )
 
-    const newDates: string[] = []
-    const currentDate = new Date(newStartDate)
+    const newDates: { jalali: string; gregorian: string }[] = []
+    let currentJalaliDate = newJalaliStartDate
 
-    if (newRecurrence === "never") {
-      newDates.push(currentDate.toISOString().split("T")[0])
-    } else {
-      for (let i = 0; i < newCount; i++) {
-        newDates.push(currentDate.toISOString().split("T")[0])
+    const effectiveCount = newRecurrence === "never" ? 1 : newCount
+
+    for (let i = 0; i < effectiveCount; i++) {
+      newDates.push({
+        jalali: currentJalaliDate,
+        gregorian: jalaliStringToGregorianString(currentJalaliDate),
+      })
+
+      if (i < effectiveCount - 1) {
         switch (newRecurrence) {
           case "daily":
-            currentDate.setDate(currentDate.getDate() + 1)
+            currentJalaliDate = addJalaliDays(currentJalaliDate, 1)
             break
           case "weekly":
-            currentDate.setDate(currentDate.getDate() + 7)
+            currentJalaliDate = addJalaliDays(currentJalaliDate, 7)
             break
           case "monthly":
-            currentDate.setMonth(currentDate.getMonth() + 1)
+            currentJalaliDate = addJalaliMonths(currentJalaliDate, 1)
             break
           case "yearly":
-            currentDate.setFullYear(currentDate.getFullYear() + 1)
+            currentJalaliDate = addJalaliYears(currentJalaliDate, 1)
             break
         }
       }
     }
 
     const newPayments: InstallmentPayment[] = []
-    const effectiveCount = newRecurrence === "never" ? 1 : newCount
 
     for (let i = 0; i < effectiveCount; i++) {
       if (i < sortedExisting.length) {
         newPayments.push({
           id: sortedExisting[i].id,
-          due_date: newDates[i],
+          jalali_due_date: newDates[i].jalali,
+          due_date: newDates[i].gregorian,
           amount: newAmount,
           is_paid: sortedExisting[i].is_paid,
           paid_date: sortedExisting[i].paid_date,
@@ -210,7 +229,8 @@ export function InstallmentDialog({
       } else {
         newPayments.push({
           id: crypto.randomUUID(),
-          due_date: newDates[i],
+          jalali_due_date: newDates[i].jalali,
+          due_date: newDates[i].gregorian,
           amount: newAmount,
           is_paid: false,
         })
@@ -225,8 +245,14 @@ export function InstallmentDialog({
     setLoading(true)
 
     try {
-      const [gy, gm, gd] = jalaliToGregorian(startDatePersian.year, startDatePersian.month, startDatePersian.day)
-      const startDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
+      // 🆕 ساخت jalali_start_date
+      const jalaliStartDate = formatPersianDate(
+        startDatePersian.year,
+        startDatePersian.month,
+        startDatePersian.day
+      )
+      
+      const startDate = jalaliStringToGregorianString(jalaliStartDate)
 
       if (recurrence === "never" && Number(installmentCount) !== 1) {
         setInstallmentCount("1")
@@ -240,6 +266,7 @@ export function InstallmentDialog({
             total_amount: Number(totalAmount),
             installment_amount: Number(installmentAmount),
             start_date: startDate,
+            jalali_start_date: jalaliStartDate, // 🆕
             installment_count: Number(installmentCount),
             recurrence: recurrence,
             payment_time: paymentTime,
@@ -248,7 +275,7 @@ export function InstallmentDialog({
             updated_at: new Date().toISOString(),
             payments: updateExistingPayments(
               installment.payments,
-              startDate,
+              jalaliStartDate,
               Number(installmentCount),
               recurrence,
               Number(installmentAmount),
@@ -262,9 +289,15 @@ export function InstallmentDialog({
             total_amount: Number(totalAmount),
             installment_amount: Number(installmentAmount),
             start_date: startDate,
+            jalali_start_date: jalaliStartDate, // 🆕
             installment_count: Number(installmentCount),
             recurrence: recurrence,
-            payments: generatePayments(startDate, Number(installmentCount), recurrence, Number(installmentAmount)),
+            payments: generatePayments(
+              jalaliStartDate,
+              Number(installmentCount),
+              recurrence,
+              Number(installmentAmount)
+            ),
             reminder_days: Number(reminderDays),
             notes,
             payment_time: paymentTime,
@@ -303,7 +336,9 @@ export function InstallmentDialog({
 
       toast({
         title: "قسط حذف شد",
-        description: navigator.onLine ? "قسط حذف و همگام‌سازی شد" : "قسط محلی حذف شد",
+        description: navigator.onLine 
+          ? "قسط حذف و همگام‌سازی شد. برای بازیابی به بخش سطل زباله مراجعه کنید." 
+          : "قسط محلی حذف شد. می‌توانید از سطل زباله بازیابی کنید.",
       })
 
       setShowDeleteConfirm(false)
