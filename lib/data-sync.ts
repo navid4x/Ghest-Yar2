@@ -211,7 +211,7 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
       window.dispatchEvent(new CustomEvent("data-refreshed", { 
         detail: updated.filter((i: Installment) => !i.deleted_at) 
       }))
-    }, 100)
+    }, 1000)
   }
 }
 
