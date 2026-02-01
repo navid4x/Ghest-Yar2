@@ -107,7 +107,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }
 
   function getPersianDate(gregorianDate: string, jalaliDate?: string): string {
-    // 🆕 اگر jalali_due_date داریم، مستقیم استفاده کن
+    // اگر jalali_due_date داریم، مستقیم استفاده کن
     if (jalaliDate) {
       const [year, month, day] = jalaliDate.split("/").map(Number)
       return `${toPersianDigits(day)} ${persianMonths[month - 1]} ${toPersianDigits(year)}`
@@ -139,15 +139,32 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return labels[recurrence as keyof typeof labels] || recurrence
   }
 
+  // ============================================
+  // 💰 کل بدهی (از امروز به بعد)
+  // ============================================
   const totalDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) {
       return sum
     }
 
-    const unpaidAmount = inst.payments.filter((p) => !p.is_paid).reduce((s, p) => s + (p.amount || 0), 0)
+    const unpaidAmount = inst.payments
+      .filter((p) => {
+        if (p.is_paid) return false
+
+        // فقط اقساطی که از امروز به بعد هستن
+        const dueDate = new Date(p.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+
+        return dueDate >= todayGregorian
+      })
+      .reduce((s, p) => s + (p.amount || 0), 0)
+
     return sum + unpaidAmount
   }, 0)
 
+  // ============================================
+  // 📅 بدهی ماه جاری (از امروز تا آخر ماه جاری)
+  // ============================================
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
 
@@ -158,33 +175,44 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
+        // باید از امروز به بعد باشه
+        if (dueDate < todayGregorian) return false
+
+        // تبدیل به شمسی
         const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
         )
 
+        // چک کردن: آیا در ماه جاری هست؟
         const isCurrentMonth = dueJY === todayJalaliYear && dueJM === todayJalaliMonth
-        const isFromToday = dueJD >= todayJalaliDay
 
-        return isCurrentMonth && isFromToday
+        return isCurrentMonth
       })
       .reduce((s, p) => s + (p.amount || 0), 0)
 
     return sum + unpaidAmount
   }, 0)
 
+  // ============================================
+  // 📆 اقساط این هفته (7 روز آینده)
+  // ============================================
   const upcomingThisWeek = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
         const daysUntil = getDaysUntilDue(p.due_date)
+        // از امروز تا 7 روز آینده
         return daysUntil >= 0 && daysUntil <= 7
       })
       .map((p) => ({ ...inst, payment: p }))
   })
 
+  // ============================================
+  // 📅 اقساط ماه جاری (از امروز تا آخر ماه)
+  // ============================================
   const currentMonthInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -194,6 +222,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
+        // باید از امروز به بعد باشه
         if (dueDate < todayGregorian) return false
 
         const [dueJY, dueJM, dueJD] = gregorianToJalali(
@@ -202,15 +231,25 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           dueDate.getDate(),
         )
 
+        // ماه و سال جاری
         return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .map((p) => ({ ...inst, payment: p }))
   })
 
+  // ============================================
+  // ⚠️ اقساط معوقه (گذشته و پرداخت نشده)
+  // ============================================
   const overdueInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
-      .filter((p) => !p.is_paid && getDaysUntilDue(p.due_date) < 0)
+      .filter((p) => {
+        if (p.is_paid) return false
+        
+        // فقط اقساطی که تاریخشون گذشته
+        const daysUntil = getDaysUntilDue(p.due_date)
+        return daysUntil < 0
+      })
       .map((p) => ({ ...inst, payment: p }))
   })
 
@@ -280,7 +319,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           <Plus className="h-6 w-6" />
         </Button>
 
-        {/* 🆕 دکمه سطل زباله */}
+        {/* دکمه سطل زباله */}
         <Button
           onClick={() => setTrashDialogOpen(true)}
           size="icon"
