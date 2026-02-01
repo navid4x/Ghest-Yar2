@@ -573,7 +573,7 @@ export function InstallmentDialog({
         onOpenChange={setShowDeleteConfirm}
         onConfirm={handleDeleteConfirmed}
         title="حذف قسط"
-        description={`آیا از حذف قسط "${installment?.creditor_name || ""}" اطمینان دارید؟ این عملیات قابل بازگشت نیست و تمام ${installment?.installment_count || 0} دوره پرداخت حذف خواهد شد.`}
+        description={`آیا از حذف قسط "${installment?.creditor_name || ""}" اطمینان دارید؟`}
         loading={loading}
       />
     </>
