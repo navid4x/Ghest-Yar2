@@ -477,7 +477,7 @@ function mergeInstallments(local: Installment[], server: Installment[], userId: 
     }
 
     if (!serverItem) {
-      if (isInSyncQueue(item.id)) {
+      if (isInSyncQueue(item.id) || isRecentItem(item)) {
         merged.set(item.id, item)
         console.log("[Sync] Keeping local item (in sync queue):", item.id)
       } else {
