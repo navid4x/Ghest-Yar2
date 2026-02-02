@@ -141,15 +141,6 @@ export function DayInstallmentsPopup({
                     <span>تعداد:</span>
                   </div>
                 </div>
-
-                {/* دکمه بستن */}
-                <Button
-                  variant="outline"
-                  className="w-full mt-4"
-                  onClick={() => onOpenChange(false)}
-                >
-                  بستن
-                </Button>
               </Card>
             </motion.div>
           </div>
