@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -34,9 +34,6 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
     payment: any
   }>>([])
   const [selectedPersianDate, setSelectedPersianDate] = useState("")
-  const [clickedElementRect, setClickedElementRect] = useState<DOMRect | null>(null)
-  
-  const dayButtonsRef = useRef<Map<string, HTMLButtonElement>>(new Map())
 
   function handlePrevMonth() {
     if (currentMonth === 1) {
@@ -56,7 +53,7 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
     }
   }
 
-  function handleDateClick(day: number, event: React.MouseEvent<HTMLButtonElement>) {
+  function handleDateClick(day: number) {
     const [gy, gm, gd] = jalaliToGregorian(currentYear, currentMonth, day)
     const gregorianDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
     const persianDateStr = formatPersianDate(currentYear, currentMonth, day)
@@ -69,11 +66,6 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
         .filter((p) => !p.is_paid && p.due_date === gregorianDate)
         .map((p) => ({ installment: inst, payment: p }))
     })
-
-    // ذخیره موقعیت دکمه برای انیمیشن
-    const buttonElement = event.currentTarget
-    const rect = buttonElement.getBoundingClientRect()
-    setClickedElementRect(rect)
 
     if (dayInstallments.length > 0) {
       // اگر قسط داشت، popup نشون بده
@@ -146,13 +138,8 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
           {calendarDays.map((day, index) => (
             <button
               key={index}
-              onClick={(e) => day && handleDateClick(day, e)}
+              onClick={() => day && handleDateClick(day)}
               disabled={!day}
-              ref={(el) => {
-                if (el && day) {
-                  dayButtonsRef.current.set(`${currentYear}-${currentMonth}-${day}`, el)
-                }
-              }}
               className={`
                 aspect-square p-2 text-sm rounded-lg transition-all
                 ${!day ? "invisible" : ""}
@@ -186,7 +173,6 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
         onOpenChange={setShowPopup}
         installments={selectedDayInstallments}
         persianDate={selectedPersianDate}
-        originElement={clickedElementRect}
       />
     </>
   )
