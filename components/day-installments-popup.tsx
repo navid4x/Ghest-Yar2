@@ -84,7 +84,7 @@ export function DayInstallmentsPopup({
                       transition={{ delay: index * 0.1 }}
                     >
                       <Card className="p-4 bg-gradient-to-br from-muted/30 to-muted/10 border-2 hover:border-primary/50 transition-all cursor-pointer group">
-                        <div className="flex flex-row-reverse items-start justify-between gap-3" style="flex-direction:row-reverse !important">
+                        <div className="flex flex-row-reverse items-start justify-between gap-3">
                           <div className="flex-1 min-w-0 text-right">
                             {/* عنوان */}
                             <div className="flex items-center gap-2 mb-2 justify-end">
