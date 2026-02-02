@@ -117,8 +117,8 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <WifiOff className="h-3 w-3" />
-                    {toPersianDigits(pendingOps)} در انتظار
+                   
+                    {toPersianDigits(pendingOps)} کار در انتظار
                   </>
                 )}
               </Badge>
