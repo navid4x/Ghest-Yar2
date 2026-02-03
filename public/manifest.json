@@ -1,7 +1,7 @@
 {
-  "name": "قسط یار",
-  "short_name": "قسط یار",
-  "description": "امکان ثبت اقساط یا تاریخ شمسی و امکان یادآوری",
+  "name": "قسطا",
+  "short_name": "قسطا",
+  "description": "امکان ثبت اقساط با تاریخ شمسی و امکان یادآوری",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
