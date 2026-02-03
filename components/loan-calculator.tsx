@@ -145,7 +145,7 @@ export function LoanCalculator() {
           </div>
 
           {/* انتخاب روش ورودی */}
-          <div className="border-t pt-4">
+          <div className="pt-4">
             <Label className="text-sm font-medium mb-3 block">روش محاسبه بازپرداخت:</Label>
             
             {/* گزینه 1: پرداخت ماهیانه */}
@@ -245,7 +245,7 @@ export function LoanCalculator() {
 
             <div className="p-4 rounded-lg bg-card border-2">
               <div className="flex flex-row-reverse items-center justify-between">
-                <Banknote className="h-5 w-5 text-primary" />
+                <Banknote className="h-8 w-8 text-primary" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">پرداخت ماهیانه</span>
                   <p className="text-2xl font-bold text-primary">
