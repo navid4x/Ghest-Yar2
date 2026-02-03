@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Calculator, TrendingUp, Calendar, DollarSign, Percent } from "lucide-react"
 import { formatCurrencyPersian, parseCurrencyInput, toPersianDigits } from "@/lib/persian-calendar"
 
@@ -21,7 +20,6 @@ export function LoanCalculator() {
   // خروجی‌های محاسبه شده
   const [results, setResults] = useState({
     totalProfit: 0, // کل سود
-    profitPercent: 0, // درصد سود کل
     annualProfitPercent: 0, // درصد سود سالانه
     monthlyProfitPercent: 0, // درصد سود ماهیانه
     monthlyPaymentCalc: 0, // پرداخت ماهیانه محاسبه شده
@@ -49,7 +47,7 @@ export function LoanCalculator() {
       // کل سود
       const totalProfit = payback - principal
 
-      // درصد سود کل
+      // درصد سود کل (برای محاسبات داخلی)
       const profitPercent = (totalProfit / principal) * 100
 
       // درصد سود سالانه
@@ -64,7 +62,6 @@ export function LoanCalculator() {
 
       setResults({
         totalProfit,
-        profitPercent,
         annualProfitPercent,
         monthlyProfitPercent,
         monthlyPaymentCalc,
@@ -72,7 +69,6 @@ export function LoanCalculator() {
     } else {
       setResults({
         totalProfit: 0,
-        profitPercent: 0,
         annualProfitPercent: 0,
         monthlyProfitPercent: 0,
         monthlyPaymentCalc: 0,
@@ -101,23 +97,13 @@ export function LoanCalculator() {
   const hasResults = results.totalProfit > 0
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
-          <Calculator className="h-6 w-6 text-white" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">محاسبه‌گر وام و قسط</h2>
-          <p className="text-sm text-muted-foreground">محاسبه سود و بازپرداخت</p>
-        </div>
-      </div>
-
+    <div className="space-y-6" dir="rtl">
+      
       {/* ورودی‌ها */}
-      <Card className="p-6">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-primary" />
+      <Card className="p-6" dir="rtl">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-end">
           اطلاعات وام
+          <DollarSign className="h-5 w-5 text-primary" />
         </h3>
 
         <div className="space-y-4">
@@ -205,95 +191,66 @@ export function LoanCalculator() {
 
       {/* نتایج */}
       {hasResults && (
-        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
+        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20" dir="rtl">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-end">
             نتایج محاسبات
+            <TrendingUp className="h-5 w-5 text-primary" />
           </h3>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* کل سود */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">کل سود پرداختی</span>
-                <DollarSign className="h-4 w-4 text-red-500" />
+              <div className="flex items-center justify-between">
+                <DollarSign className="h-8 w-8 text-red-500 shrink-0" />
+                <div className="text-right flex-1">
+                  <span className="text-sm text-muted-foreground block mb-2">کل سود پرداختی</span>
+                  <p className="text-2xl font-bold text-red-600">
+                    {formatCurrencyPersian(results.totalProfit)} تومان
+                  </p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-red-600">
-                {formatCurrencyPersian(results.totalProfit)} تومان
-              </p>
-            </div>
-
-            {/* درصد کل سود */}
-            <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">درصد کل سود</span>
-                <Percent className="h-4 w-4 text-orange-500" />
-              </div>
-              <p className="text-2xl font-bold text-orange-600">
-                {toPersianDigits(results.profitPercent.toFixed(2))}%
-              </p>
             </div>
 
             {/* سود سالانه */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">نرخ سود سالانه</span>
-                <Calendar className="h-4 w-4 text-blue-500" />
+              <div className="flex items-center justify-between">
+                <Calendar className="h-8 w-8 text-blue-500 shrink-0" />
+                <div className="text-right flex-1">
+                  <span className="text-sm text-muted-foreground block mb-2">نرخ سود سالانه</span>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {toPersianDigits(results.annualProfitPercent.toFixed(2))}%
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    معادل {formatCurrencyPersian(Math.round((results.totalProfit / Number(monthCount)) * 12))} تومان در سال
+                  </p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-blue-600">
-                {toPersianDigits(results.annualProfitPercent.toFixed(2))}%
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                معادل {formatCurrencyPersian(Math.round((results.totalProfit / Number(monthCount)) * 12))} تومان در سال
-              </p>
             </div>
 
             {/* سود ماهیانه */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">نرخ سود ماهیانه</span>
-                <Percent className="h-4 w-4 text-green-500" />
+              <div className="flex items-center justify-between">
+                <Percent className="h-8 w-8 text-green-500 shrink-0" />
+                <div className="text-right flex-1">
+                  <span className="text-sm text-muted-foreground block mb-2">نرخ سود ماهیانه</span>
+                  <p className="text-2xl font-bold text-green-600">
+                    {toPersianDigits(results.monthlyProfitPercent.toFixed(2))}%
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    معادل {formatCurrencyPersian(Math.round(results.totalProfit / Number(monthCount)))} تومان در ماه
+                  </p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-green-600">
-                {toPersianDigits(results.monthlyProfitPercent.toFixed(2))}%
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                معادل {formatCurrencyPersian(Math.round(results.totalProfit / Number(monthCount)))} تومان در ماه
-              </p>
             </div>
           </div>
 
           {/* پرداخت ماهیانه */}
-          <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border-2 border-primary/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">پرداخت ماهیانه</p>
-                <p className="text-3xl font-bold text-primary">
-                  {formatCurrencyPersian(Math.round(results.monthlyPaymentCalc))} تومان
-                </p>
-              </div>
-              <Badge variant="secondary" className="text-lg px-4 py-2">
-                ماهانه
-              </Badge>
-            </div>
-          </div>
-
-          {/* خلاصه */}
-          <div className="mt-4 p-4 rounded-lg bg-muted/50 border">
-            <p className="text-sm text-muted-foreground mb-2">📊 خلاصه:</p>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="font-medium">{formatCurrencyPersian(Number(principalAmount))} تومان</span>
-                <span className="text-muted-foreground">دریافتی شما</span>
-              </div>
-              <div className="flex justify-between text-red-600">
-                <span className="font-medium">+ {formatCurrencyPersian(results.totalProfit)} تومان</span>
-                <span>سود</span>
-              </div>
-              <div className="border-t pt-1 mt-1 flex justify-between font-bold">
-                <span>{formatCurrencyPersian(Number(totalPayback))} تومان</span>
-                <span>کل بازپرداخت</span>
-              </div>
+          <div className="mt-4 p-6 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border-2 border-primary/30">
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground mb-2">پرداخت ماهیانه</p>
+              <p className="text-5xl font-bold text-primary">
+                {formatCurrencyPersian(Math.round(results.monthlyPaymentCalc))} تومان
+              </p>
             </div>
           </div>
         </Card>
@@ -301,7 +258,7 @@ export function LoanCalculator() {
 
       {/* راهنما */}
       {!hasResults && (
-        <Card className="p-6 bg-muted/30">
+        <Card className="p-6 bg-muted/30" dir="rtl">
           <div className="text-center text-muted-foreground">
             <Calculator className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="text-sm">
