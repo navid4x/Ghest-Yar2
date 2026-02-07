@@ -75,7 +75,7 @@ if (typeof window !== "undefined") {
   checkSupabaseConnection()
 
   // Periodic check every 30 seconds
-  setInterval(checkSupabaseConnection, 30000)
+  setInterval(checkSupabaseConnection, 10000)
 
   // Browser online/offline events
   window.addEventListener("online", () => {
