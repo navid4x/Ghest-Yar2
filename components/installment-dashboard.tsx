@@ -1,23 +1,32 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect, useCallback } from "react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2, Trash2, Calculator } from "lucide-react"
-import type { Installment } from "@/lib/types"
-import { InstallmentDialog } from "./installment-dialog"
-import { CalendarGrid } from "./calendar-grid"
-import { TrashDialog } from "./trash-dialog"
-import { LoanCalculator } from "./loan-calculator"
-import { gregorianToJalali, persianMonths, toPersianDigits, formatCurrencyPersian } from "@/lib/persian-calendar"
-import { loadInstallments, togglePayment, undoLastPayment, getLastPaidPayment } from "@/lib/data-sync"
-import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
-import { ConfirmUndoDialog } from "./confirm-undo-dialog"
+import {useCallback, useEffect, useState} from "react"
+import {Card} from "@/components/ui/card"
+import {Button} from "@/components/ui/button"
+import {Badge} from "@/components/ui/badge"
+import {Progress} from "@/components/ui/progress"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs"
+import {
+  AlertCircle,
+  Banknote,
+  Calculator,
+  CalendarDays,
+  CircleDollarSign,
+  List,
+  Plus,
+  Trash2,
+  Undo2
+} from "lucide-react"
+import type {Installment} from "@/lib/types"
+import {InstallmentDialog} from "./installment-dialog"
+import {CalendarGrid} from "./calendar-grid"
+import {TrashDialog} from "./trash-dialog"
+import {LoanCalculator} from "./loan-calculator"
+import {formatCurrencyPersian, gregorianToJalali, persianMonths, toPersianDigits} from "@/lib/persian-calendar"
+import {getLastPaidPayment, loadInstallments, togglePayment, undoLastPayment} from "@/lib/data-sync"
+import {startBackgroundSync, stopBackgroundSync} from "@/lib/background-sync"
+import {ConfirmUndoDialog} from "./confirm-undo-dialog"
 
 interface InstallmentDashboardProps {
   userId: string
@@ -123,7 +132,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   const todayGregorian = new Date()
   todayGregorian.setHours(0, 0, 0, 0)
 
-  const [todayJalaliYear, todayJalaliMonth, todayJalaliDay] = gregorianToJalali(
+  const [todayJalaliYear, todayJalaliMonth] = gregorianToJalali(
     todayGregorian.getFullYear(),
     todayGregorian.getMonth() + 1,
     todayGregorian.getDate(),
@@ -180,16 +189,14 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         if (dueDate < todayGregorian) return false
 
         // تبدیل به شمسی
-        const [dueJY, dueJM, dueJD] = gregorianToJalali(
+        const [dueJY, dueJM] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
         )
 
         // چک کردن: آیا در ماه جاری هست؟
-        const isCurrentMonth = dueJY === todayJalaliYear && dueJM === todayJalaliMonth
-
-        return isCurrentMonth
+        return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .reduce((s, p) => s + (p.amount || 0), 0)
 
@@ -226,7 +233,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         // باید از امروز به بعد باشه
         if (dueDate < todayGregorian) return false
 
-        const [dueJY, dueJM, dueJD] = gregorianToJalali(
+        const [dueJY, dueJM] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
@@ -310,7 +317,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   return (
     <div className="space-y-6">
       {/* دکمه‌های شناور */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 mb-0">
         {/* دکمه افزودن */}
         <Button
           onClick={() => handleAddInstallment()}

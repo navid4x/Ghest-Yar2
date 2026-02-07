@@ -31,8 +31,8 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
   async function loadDeletedItems() {
     setLoading(true)
     try {
-      const items = await getDeletedInstallments()
-      setDeletedItems(items)
+      const [items] = await Promise.all([getDeletedInstallments()]);
+      setDeletedItems(items);
     } catch (error) {
       console.error("[Trash] Error loading deleted items:", error)
     } finally {
