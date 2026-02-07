@@ -77,7 +77,7 @@ export async function loadInstallments(): Promise<Installment[]> {
   const cache = getCache(userId)
   if (cache) {
     console.log("[Sync] ⚡ Using cached data")
-    refreshDataInBackground(userId)
+    await refreshDataInBackground(userId)
     return cache.data
   }
 
@@ -468,7 +468,7 @@ function mergeInstallments(local: any[], server: any[], userId: string) {
     if (!merged.has(item.id)) {
       // اگه در queue باشه → نگه دار
       // وگرنه → حذف کن! (در server deleted شده)
-      if (isInSyncQueue(item.id) || isRecentItem(item)) {
+      if (isInSyncQueue(item.id)) {
         merged.set(item.id, item)
       } else {
         console.log('🗑️ Removing deleted:', item.id)

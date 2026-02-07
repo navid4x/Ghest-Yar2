@@ -6,16 +6,6 @@ import { toast } from "@/hooks/use-toast"
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     // وقتی اپ deploy شد روی production، این را فعال کنید
-    const isProduction =
-      typeof window !== "undefined" &&
-      !window.location.hostname.includes("vusercontent.net") &&
-      !window.location.hostname.includes("localhost")
-
-    if (!isProduction) {
-      console.log("[v0] Service Worker skipped in preview/development")
-      return
-    }
-
     if ("serviceWorker" in navigator) {
       // ثبت Service Worker
       navigator.serviceWorker
