@@ -78,7 +78,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       if (isOnline) {
         loadData()
       }
-    }, 30000)
+    }, 10000)
 
     return () => {
       stopBackgroundSync()
