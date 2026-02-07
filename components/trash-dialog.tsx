@@ -24,15 +24,15 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
 
   useEffect(() => {
     if (open) {
-      loadDeletedItems()
+     loadDeletedItems()
     }
   }, [open])
 
   async function loadDeletedItems() {
     setLoading(true)
     try {
-      const items = await getDeletedInstallments()
-      setDeletedItems(items)
+      const [items] = await Promise.all([getDeletedInstallments()]);
+      setDeletedItems(items);
     } catch (error) {
       console.error("[Trash] Error loading deleted items:", error)
     } finally {
@@ -49,7 +49,7 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
         description: "قسط با موفقیت بازیابی شد",
       })
 
-      loadDeletedItems()
+     await loadDeletedItems()
       onRestore()
     } catch (error) {
       console.error("[Trash] Error restoring:", error)
@@ -73,8 +73,9 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
         title: "🗑️ حذف شد",
         description: "قسط برای همیشه حذف شد",
       })
+      //await delay(1000)
 
-      loadDeletedItems()
+      await loadDeletedItems()
     } catch (error) {
       console.error("[Trash] Error hard deleting:", error)
       toast({
