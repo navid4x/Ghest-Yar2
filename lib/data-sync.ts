@@ -119,6 +119,7 @@ async function refreshDataInBackground(userId: string): Promise<void> {
     const serverData = await fetchFromServer(userId)
     const localData = getLocalInstallments(userId)
     const merged = mergeInstallments(localData, serverData, userId)
+    invalidateCache()
     saveLocalInstallments(userId, merged)
     setCache(userId, merged)
 
