@@ -73,7 +73,6 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
         title: "🗑️ حذف شد",
         description: "قسط برای همیشه حذف شد",
       })
-      //await delay(1000)
 
       await loadDeletedItems()
     } catch (error) {

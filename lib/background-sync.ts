@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client"
 
 const SYNC_QUEUE_KEY = "sync_queue"
-const SYNC_INTERVAL = 30000 // 30 ثانیه
+const SYNC_INTERVAL = 5000 // 10 ثانیه
 const MAX_RETRIES = 3
 
 interface SyncOperation {
