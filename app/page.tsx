@@ -3,12 +3,12 @@
 import { InstallmentDashboard } from "@/components/installment-dashboard"
 import { NotificationSettings } from "@/components/notification-settings"
 import { Wallet, LogOut, Wifi, WifiOff } from "lucide-react"
-import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
+import { getTodayPersian, persianMonths, toPersianDigits } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
-import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
+import { logout, getCurrentUser } from "@/lib/simple-auth"
+import { useSupabaseConnection } from "@/hooks/useSupabaseConnection"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getPendingOperationsCount } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
 
@@ -16,7 +16,7 @@ export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isOnline, setIsOnline] = useState(true)
+  const isOnline = useSupabaseConnection()
   const [pendingOps, setPendingOps] = useState(0)
 
   useEffect(() => {
@@ -38,19 +38,6 @@ export default function Home() {
     }
 
     loadUser()
-    setIsOnline(navigator.onLine)
-
-    const cleanup = setupOnlineListener(async (online) => {
-      setIsOnline(online)
-      if (online) {
-        console.log("[v0] Network online - refreshing user and syncing...")
-        const refreshedUser = await getCurrentUser()
-        if (refreshedUser) {
-          setUser(refreshedUser)
-        }
-        updatePendingOps()
-      }
-    })
 
     // ✨ گوش دادن به sync-complete event
     const handleSyncComplete = () => {
@@ -61,11 +48,23 @@ export default function Home() {
     window.addEventListener('sync-complete', handleSyncComplete)
 
     return () => {
-      cleanup()
       stopBackgroundSync() // ✨ توقف Background Sync
       window.removeEventListener('sync-complete', handleSyncComplete)
     }
   }, [router])
+
+  // Refresh user when coming back online
+  useEffect(() => {
+    if (isOnline && user) {
+      console.log("[v0] Network online - refreshing user and syncing...")
+      getCurrentUser().then((refreshedUser) => {
+        if (refreshedUser) {
+          setUser(refreshedUser)
+        }
+      })
+      updatePendingOps()
+    }
+  }, [isOnline])
 
   function updatePendingOps() {
     setPendingOps(getQueueSize())
@@ -145,8 +144,4 @@ export default function Home() {
   )
 }
 
-function toPersianDigits(str: string | number): string {
-  if (str === null || str === undefined) return ""
-  const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
-  return String(str).replace(/[0-9]/g, (w) => persianDigits[+w])
-}
+

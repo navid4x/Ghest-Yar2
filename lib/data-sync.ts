@@ -202,6 +202,9 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
     })) || [],
   }
 
+  // اضافه به Trash (اگه تابع داری)
+  // moveToTrash(userId, deletedInstallment)
+
   // حذف از لیست فوری (بدون setTimeout!)
   const filtered = localData.filter((i) => i.id !== installmentId)
   saveLocalInstallments(userId, filtered)
